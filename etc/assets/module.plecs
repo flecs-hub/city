@@ -5,12 +5,95 @@ using flecs.components.transform
 Module(flecs.city) {
 
 with Prefab {
+  Tree {
+    Ground {
+      Position3 = {0, -0.3, 0}
+      Box = {1.0, 0.25, 1.0}
+      Rgb = {0.05, 0.05, 0.05}
+    }
+    Trunk {
+      Position3 = {0, -1.0, 0}
+      Box = {0.5, 2.0, 0.5}
+      Rgb = {0.25, 0.2, 0.1}
+    }  
+    Canopy_1 {
+      Position3 = {0, -3.0, 0}
+      Box = {1.5, 2.0, 1.5}
+      Rgb = {0.2, 0.3, 0.15}
+    }
+    Canopy_2 {
+      Position3 = {0, -3.0, 0}
+      Box = {1, 3.0, 1}
+      Rgb = {0.2, 0.3, 0.15}
+    }   
+  }
+
+  SidewalkTree : Tree {
+    GroundEnclosing {
+      Position3 = {0, -0.275, 0}
+      Box = {1.3, 0.15, 1.3}
+      Rgb = {0.3, 0.3, 0.3}
+    }
+  }
+
+  Park {
+    Rgb = {0.2, 0.3, 0.15}
+  }
+
+  Prefab(LanternLight) {
+      Rgb = {0.03, 0.05, 0.03}
+      Emissive = {2.2}
+  }
+
+  Lantern {
+    Base {
+      Position3 = {0, -0.2, 0}
+      Box = {0.5, 0.15, 0.5}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+    BaseCap {
+      Position3 = {0, -0.3, 0}
+      Box = {0.4, 0.1, 0.4}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+    Pole {
+      Position3 = {0, -1.0, 0}
+      Box = {0.15, 2.0, 0.15}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+    Light : LanternLight {
+      Position3 = {0, -2.0, 0}
+      Box = {0.45, 0.5, 0.45}
+      Rgb = {1.0, 0.7, 0.2}
+    }
+    Bottom {
+      Position3 = {0, -1.70, 0}
+      Box = {0.4, 0.1, 0.4}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+    Cap {
+      Position3 = {0, -2.30, 0}
+      Box = {0.4, 0.1, 0.4}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+    Top {
+      Position3 = {0, -2.33, 0}
+      Box = {0.2, 0.2, 0.2}
+      Rgb = {0.03, 0.05, 0.03}
+    }
+  }
+
   Street {
     Rgb = {0.1, 0.1, 0.1}
   }
 
   Pavement {
     Rgb = {0.2, 0.2, 0.2}
+  }
+
+  Ac {
+    Rgb = {0.9, 0.9, 0.9}
+    Box = {2.0, 1.0, 1.0}
   }
 }
 

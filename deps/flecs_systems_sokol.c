@@ -28643,7 +28643,6 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
             "  vec3 l = normalize(u_light_direction);\n"
             "  vec3 n = normalize(normal);\n"
             "  float n_dot_l = dot(n, l);\n"
-            "  float lum = max(n_dot_l, emissive);\n"
 
             "  if (n_dot_l >= 0.0) {"
             "    vec3 v = normalize(u_eye_pos - position.xyz);\n"
@@ -28660,10 +28659,10 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
             "    float r_dot_v = max(dot(r, v), 0.0);\n"
             "    float l_shiny = pow(r_dot_v * n_dot_l, shininess);\n"
             "    vec3 l_specular = vec3(specular_power * l_shiny * u_light_color);\n"
-            "    vec3 l_diffuse = vec3(u_light_color) * lum;\n"
+            "    vec3 l_diffuse = vec3(u_light_color) * n_dot_l;\n"
             "    vec3 l_light = (u_light_ambient + s * l_diffuse);\n"
 
-            "    frag_color = vec4(l_light * color.xyz + s * l_specular, 1.0);\n"
+            "    frag_color = vec4(max(vec3(emissive), l_light) * color.xyz + s * l_specular, 1.0);\n"
             "  } else {\n"
             "    vec3 light = emissive + clamp(1.0 - emissive, 0.0, 1.0) * (u_light_ambient);\n"
             "    frag_color = vec4(light * color.xyz, 1.0);\n"

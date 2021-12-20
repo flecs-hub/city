@@ -13,15 +13,15 @@
 extern "C" {
 #endif
 
-ECS_STRUCT(CityBuilding, {
-    int16_t size;
-    int16_t height;
-});
-
 ECS_STRUCT(CityBlock, {
+    float x;
+    float y;
+    ecs_entity_t city;
     int16_t size;
     int16_t building_size;
     int16_t building_height;
+    float park_chance;
+    float tree_chance;
 });
 
 ECS_STRUCT(City, {
@@ -32,6 +32,8 @@ ECS_STRUCT(City, {
     int16_t building_size;
     int16_t min_building_height;
     int16_t max_building_height;
+    float park_chance;
+    float tree_chance;
 });
 
 void FlecsCityImport(

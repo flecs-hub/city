@@ -5,41 +5,60 @@
 #define PAVEMENT_HEIGHT (0.2f)
 #define STREETS_HEIGHT (0.05f)
 
-typedef struct {
-    ecs_entity_t building;
-    ecs_entity_t pavement;
-} CityBlockData;
-
-typedef struct {
-    ecs_entity_t *blocks;
-} CityData;
-
-static ECS_COMPONENT_DECLARE(CityBlockData);
-static ECS_COMPONENT_DECLARE(CityData);
 static ecs_entity_t CityStreet;
 static ecs_entity_t CityPavement;
+static ecs_entity_t CityAc;
+static ecs_entity_t CityTree;
+static ecs_entity_t CitySidewalkTree;
+static ecs_entity_t CityBush;
+static ecs_entity_t CityLantern;
+static ecs_entity_t CityPark;
 
-void SetCityBuilding(ecs_iter_t *it) {
-    CityBuilding *buildings = ecs_term(it, CityBuilding, 1);
+static
+float randf(float scale) {
+    return scale * ((float)rand() / (float)RAND_MAX);
+}
 
-    ecs_world_t *world = it->world;
+static
+float srandf(float scale) {
+    return scale * ((float)rand() / (float)RAND_MAX) - scale / 2.0;
+}
 
-    for (int i = 0; i < it->count; i ++) {
-        ecs_entity_t e = it->entities[i];
-        CityBuilding *building = &buildings[i];
+static
+ecs_entity_t plant_prop(ecs_world_t *world, CityBlock *block, float x, float y, ecs_entity_t prop) {
+    ecs_entity_t e = ecs_new_w_pair(world, EcsChildOf, block->city);
+    ecs_add_pair(world, e, EcsIsA, prop);
+    ecs_set(world, e, EcsPosition3, {
+        .x = block->x + x,
+        .y = 0, 
+        .z = block->y + y
+    });
+    return e;
+}
 
-        ecs_set(world, e, EcsPosition3, {
-            0, -(building->height / 2.0), 0
-        });
+static
+ecs_entity_t plant_tree(ecs_world_t *world, CityBlock *block, float x, float y) {
+    return plant_prop(world, block, x, y, CityTree);
+}
 
-        ecs_set(world, e, EcsBox, {
-            building->size, building->height, building->size
-        });
+static
+ecs_entity_t plant_bush(ecs_world_t *world, CityBlock *block, float x, float y) {
+    return plant_prop(world, block, x, y, CityBush);
+}
 
-        ecs_set(world, e, EcsRgb, {
-            0.7, 0.7, 0.7
-        });
-    }
+static
+ecs_entity_t plant_sidewalk_tree(ecs_world_t *world, CityBlock *block, float x, float y) {
+    return plant_prop(world, block, x, y, CitySidewalkTree);
+}
+
+static
+ecs_entity_t plant_lantern(ecs_world_t *world, CityBlock *block, float x, float y) {
+    return plant_prop(world, block, x, y, CityLantern);
+}
+
+static
+ecs_entity_t plant_park(ecs_world_t *world, CityBlock *block, float x, float y) {
+    return plant_prop(world, block, x, y, CityPark);
 }
 
 void SetCityBlock(ecs_iter_t *it) {
@@ -51,23 +70,77 @@ void SetCityBlock(ecs_iter_t *it) {
         ecs_entity_t e = it->entities[i];
         CityBlock *block = &blocks[i];
 
-        CityBlockData *data = ecs_get_mut(world, e, CityBlockData, 0);
-        ecs_entity_t pavement = ecs_new_w_pair(world, EcsChildOf, e);
-        ecs_add_pair(world, pavement, EcsIsA, CityPavement);
-        
-        ecs_set(world, pavement, EcsPosition3, {
-            0, -(PAVEMENT_HEIGHT / 2.0), 0
-        });
+        float pave_width = block->size - block->building_size;
+        float corner = (float)(block->size - (float)pave_width / 2.0) / 2.0;
 
+        ecs_entity_t pavement = ecs_new_w_pair(world, EcsChildOf, block->city);
+        ecs_add_pair(world, pavement, EcsIsA, CityPavement);
+        ecs_set(world, pavement, EcsPosition3, {
+            .x = block->x, 
+            .y = -(PAVEMENT_HEIGHT / 2.0), 
+            .z = block->y
+        });
         ecs_set(world, pavement, EcsBox, {
             block->size, PAVEMENT_HEIGHT, block->size
         });
 
-        ecs_entity_t building = ecs_new_w_pair(world, EcsChildOf, e);
-        ecs_set(world, building, CityBuilding, {
-            .size = block->building_size,
-            .height = block->building_height
-        });
+        if (randf(1.0) < (1.0 - block->park_chance)) {
+            ecs_entity_t building = ecs_new_w_pair(world, EcsChildOf, block->city);        
+            ecs_set(world, building, EcsPosition3, {
+                .x = block->x,
+                .y = -(block->building_height / 2.0),
+                .z = block->y
+            });
+            ecs_set(world, e, EcsBox, {
+                block->building_size, 
+                block->building_height, 
+                block->building_size
+            });
+            float bc = 0.3f + randf(0.5f);
+            ecs_set(world, e, EcsRgb, {
+                bc, bc, bc
+            });
+
+            if (randf(1.0) > 0.3) {
+                ecs_entity_t ac = ecs_new_w_pair(world, EcsChildOf, block->city);
+                ecs_add_pair(world, ac, EcsIsA, CityAc);
+                ecs_set(world, ac, EcsPosition3, {
+                    .x = block->x + srandf((float)block->building_size / 1.5),
+                    .y = -(block->building_height / 2.0),
+                    .z = block->y + srandf((float)block->building_size / 1.5)
+                });
+            }
+        } else {
+            ecs_entity_t park = plant_park(world, block, 0, 0);
+            ecs_set(world, park, EcsBox, {
+                block->size - pave_width, 0.7,
+                block->size - pave_width
+            });
+
+            for (int t = 0; t < 5; t ++) {
+                float tx = srandf(block->size - pave_width * 2.5);
+                float ty = srandf(block->size - pave_width * 2.5);
+                plant_tree(world, block, tx, ty);
+            }
+        }
+
+        if (randf(1.0) < block->tree_chance) {
+            plant_sidewalk_tree(world, block, -corner, 0);
+        }
+        if (randf(1.0) < block->tree_chance) {
+            plant_sidewalk_tree(world, block, corner, 0);
+        }
+        if (randf(1.0) < block->tree_chance) {
+            plant_sidewalk_tree(world, block, 0, -corner);
+        }
+        if (randf(1.0) < block->tree_chance) {
+            plant_sidewalk_tree(world, block, 0, corner);
+        }
+
+        plant_lantern(world, block, corner, corner);
+        plant_lantern(world, block, corner, -corner);
+        plant_lantern(world, block, -corner, -corner);
+        plant_lantern(world, block, -corner, corner);
     }
 }
 
@@ -109,9 +182,6 @@ void SetCity(ecs_iter_t *it) {
             road_width = 10;
         }
 
-        CityData *data = ecs_get_mut(world, e, CityData, 0);
-        data->blocks = ecs_os_calloc_n(ecs_entity_t, blocks_x * blocks_y);
-
         float width = (float)block_size + (float)road_width / 2.0;
         float left = -((float)width * blocks_x) / 2.0f;
         float top = -((float)width * blocks_y) / 2.0f;
@@ -121,9 +191,9 @@ void SetCity(ecs_iter_t *it) {
         ecs_entity_t streets = ecs_new_w_pair(world, EcsChildOf, e);
         ecs_set_name(world, streets, "Streets");
         ecs_add_pair(world, streets, EcsIsA, CityStreet);
-        ecs_set(world, streets, EcsPosition3, {0, 0, 0});
+        ecs_set(world, streets, EcsPosition3, {-width, 0, -width});
         ecs_set(world, streets, EcsBox, {
-            (2 + blocks_x) * width, STREETS_HEIGHT, (2 + blocks_y) * width});
+            blocks_x * width, STREETS_HEIGHT, blocks_y * width});
 
         for (int x = 0; x < blocks_x; x ++) {
             for (int y = 0; y < blocks_y; y ++) {
@@ -138,12 +208,15 @@ void SetCity(ecs_iter_t *it) {
                 });
 
                 ecs_set(world, block, CityBlock, {
+                    .city = e,
+                    .x = left + width * x,
+                    .y = top + width * y,
                     .size = block_size,
                     .building_size = building_size,
-                    .building_height = height
+                    .building_height = height,
+                    .park_chance = city->park_chance,
+                    .tree_chance = city->tree_chance,
                 });
-
-                data->blocks[x + y * blocks_x] = block;
             }
         }
     }
@@ -158,25 +231,25 @@ void FlecsCityImport(
     ECS_IMPORT(world, FlecsComponentsGraphics);
     ECS_IMPORT(world, FlecsComponentsGeometry);
 
-    /* Private components */
-    ecs_set_name_prefix(world, "City");
-    ECS_COMPONENT_DEFINE(world, CityData);
-    ECS_COMPONENT_DEFINE(world, CityBlockData);
-
     /* Public components */
-    ECS_META_COMPONENT(world, CityBuilding);
+    ecs_set_name_prefix(world, "City");
     ECS_META_COMPONENT(world, CityBlock);
     ecs_set_name_prefix(world, NULL);
     ECS_META_COMPONENT(world, City);
 
     ECS_OBSERVER(world, SetCity, EcsOnSet, City);
     ECS_OBSERVER(world, SetCityBlock, EcsOnSet, CityBlock);
-    ECS_OBSERVER(world, SetCityBuilding, EcsOnSet, CityBuilding);
 
     /* Load module assets */
     if (ecs_plecs_from_file(world, "etc/assets/module.plecs") == 0) {
         CityStreet = ecs_lookup_fullpath(world, "Street");
         CityPavement = ecs_lookup_fullpath(world, "Pavement");
+        CityAc = ecs_lookup_fullpath(world, "Ac");
+        CityTree = ecs_lookup_fullpath(world, "Tree");
+        CitySidewalkTree = ecs_lookup_fullpath(world, "SidewalkTree");
+        CityBush = ecs_lookup_fullpath(world, "Bush");
+        CityLantern = ecs_lookup_fullpath(world, "Lantern");
+        CityPark = ecs_lookup_fullpath(world, "Park");
     } else {
         ecs_err("failed to load city assets");
     }
