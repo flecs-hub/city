@@ -1,0 +1,17 @@
+using flecs.components.graphics
+using flecs.components.geometry
+using flecs.components.transform
+
+Module(flecs.city) {
+
+with Prefab {
+  Street {
+    Rgb = {0.1, 0.1, 0.1}
+  }
+
+  Pavement {
+    Rgb = {0.2, 0.2, 0.2}
+  }
+}
+
+}

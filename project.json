@@ -1,0 +1,13 @@
+{
+    "id": "city",
+    "type": "application",
+    "value": {
+        "use": [
+            "flecs",
+            "flecs.components.gui",
+            "flecs.systems.physics",
+            "flecs.systems.sokol"
+        ],
+        "standalone": true
+    }
+}

@@ -1,0 +1,32 @@
+using flecs.components.gui
+using flecs.components.graphics
+using flecs.city
+
+my_city = City{
+  blocks_x: 20,
+  blocks_y: 20,
+  max_building_height: 30
+}
+
+// App
+light = DirectionalLight{
+  direction: [0.1, -0.5, 0.1],
+  color: [0.96, 1.0, 0.93]
+}
+
+camera = Camera{
+  position: [30.0, -65.0, -100.0]
+}
+
+canvas {
+  Canvas = {
+    title: "Flecs City",
+    width: 800,
+    height: 600
+    background_color: {0.3, 0.6, 0.9},
+    ambient_light: {0.03, 0.06, 0.09},
+
+    directional_light: light,
+    camera: camera
+  }
+}
