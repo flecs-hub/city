@@ -91,16 +91,50 @@ void SetCityBlock(ecs_iter_t *it) {
                 .y = -(block->building_height / 2.0),
                 .z = block->y
             });
-            ecs_set(world, e, EcsBox, {
+            ecs_set(world, building, EcsBox, {
                 block->building_size, 
                 block->building_height, 
                 block->building_size
             });
             float bc = 0.3f + randf(0.5f);
-            ecs_set(world, e, EcsRgb, {
+            ecs_set(world, building, EcsRgb, {
                 bc, bc, bc
             });
 
+            if (block->building_height > 30 && randf(1.0) > 0.7) {
+                float top_height = (float)block->building_height * 0.1;
+                ecs_entity_t top = ecs_new_w_pair(world, EcsChildOf, block->city);
+                ecs_set(world, top, EcsPosition3, {
+                    .x = block->x,
+                    .y = -block->building_height - (top_height / 2.0),
+                    .z = block->y
+                });
+                ecs_set(world, top, EcsBox, {
+                    (float)block->building_size * 0.8, 
+                    top_height, 
+                    (float)block->building_size * 0.8
+                });
+                ecs_set(world, top, EcsRgb, {
+                    bc, bc, bc
+                });
+
+                if (randf(1.0) > 0.8) {
+                    top = ecs_new_w_pair(world, EcsChildOf, block->city);
+                    ecs_set(world, top, EcsPosition3, {
+                        .x = block->x,
+                        .y = -block->building_height - top_height - (top_height / 2.0),
+                        .z = block->y
+                    });
+                    ecs_set(world, top, EcsBox, {
+                        (float)block->building_size * 0.6, 
+                        top_height, 
+                        (float)block->building_size * 0.6
+                    });
+                    ecs_set(world, top, EcsRgb, {
+                        bc, bc, bc
+                    });
+                }
+            } else
             if (randf(1.0) > 0.3) {
                 ecs_entity_t ac = ecs_new_w_pair(world, EcsChildOf, block->city);
                 ecs_add_pair(world, ac, EcsIsA, CityAc);

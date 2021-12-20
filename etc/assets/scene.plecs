@@ -5,9 +5,10 @@ using flecs.city
 my_city = City{
   blocks_x: 40,
   blocks_y: 40,
-  max_building_height: 200,
-  tree_chance: 0.2,
-  park_chance: 0.95
+  min_building_height: 10,
+  max_building_height: 30,
+  tree_chance: 1.0,
+  park_chance: 0.2
 }
 
 // App
@@ -17,8 +18,8 @@ light = DirectionalLight{
 }
 
 camera = Camera{
-  position: [-2, -2.5, -42]
-  lookat: [0, 0, -100]
+  position: [0, -60.5, -101]
+  lookat: [0, 0, 60]
 }
 
 canvas {
