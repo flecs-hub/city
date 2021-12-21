@@ -10,12 +10,12 @@ my_city = City{
   block_size: 20,
   road_width: 13,
   min_building_height: 5,
-  max_building_height: 25,
+  max_building_height: 30,
   tree_chance: 0.5,
-  park_chance: 0.3,
-  park_with_trees_chance: 0.5,
+  park_chance: 0.1,
+  park_with_trees_chance: 1.0,
   modern_chance: 0.1,
-  traffic_frequency: 10
+  traffic_frequency: 20.0
 }
 
 // App
