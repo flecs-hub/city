@@ -12,6 +12,9 @@
                 "dl"
             ]
         },
+        "libs": [
+            "m"
+        ],
         "${os windows}": {
             "defines": [
                 "_WINDOWS",

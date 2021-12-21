@@ -4,6 +4,7 @@
     "value": {
         "use": [
             "flecs",
+            "flecs.game",
             "flecs.components.gui",
             "flecs.systems.physics",
             "flecs.systems.sokol"

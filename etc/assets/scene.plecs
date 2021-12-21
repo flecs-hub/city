@@ -1,14 +1,15 @@
 using flecs.components.gui
 using flecs.components.graphics
 using flecs.city
+using flecs.game
 
 my_city = City{
   blocks_x: 40,
   blocks_y: 40,
   min_building_height: 10,
-  max_building_height: 30,
-  tree_chance: 1.0,
-  park_chance: 0.2
+  max_building_height: 50,
+  tree_chance: 0.5,
+  park_chance: 0.5
 }
 
 // App
@@ -18,15 +19,19 @@ light = DirectionalLight{
 }
 
 camera = Camera{
-  position: [0, -60.5, -101]
+  position: [0, -1.5, -101]
   lookat: [0, 0, 60]
+  fov: 20,
+  up: [0, -1, 0]
 }
+
+camera = CameraController
 
 canvas {
   Canvas = {
     title: "Flecs City",
-    width: 1024,
-    height: 800
+    width: 1200,
+    height: 1000
     background_color: {0.3, 0.6, 0.9},
     ambient_light: {0.03, 0.06, 0.09},
 

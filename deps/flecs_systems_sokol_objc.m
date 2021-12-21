@@ -16178,7 +16178,7 @@ SOKOL_API_IMPL const void* sg_mtl_render_command_encoder(void) {
             - SAPP_EVENTTYPE_MOUSE_DOWN
             - SAPP_EVENTTYPE_MOUSE_UP
             - SAPP_EVENTTYPE_MOUSE_SCROLL
-            - SAPP_EVENTYTPE_KEY_UP
+            - SAPP_EVENTTYPE_KEY_UP
             - SAPP_EVENTTYPE_KEY_DOWN
         - The mouse lock/unlock action on the web platform is asynchronous,
           this means that sapp_mouse_locked() won't immediately return

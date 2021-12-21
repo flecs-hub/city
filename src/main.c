@@ -6,6 +6,7 @@ int main(int argc, char *argv[]) {
     ecs_world_t *world = ecs_init();
     
     ECS_IMPORT(world, FlecsCity);
+    ECS_IMPORT(world, FlecsGame);
     ECS_IMPORT(world, FlecsComponentsTransform);
     ECS_IMPORT(world, FlecsComponentsGeometry);
     ECS_IMPORT(world, FlecsComponentsGui);

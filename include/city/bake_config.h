@@ -19,6 +19,7 @@
 
 /* Headers of public dependencies */
 #include "../../deps/flecs.h"
+#include "../../deps/flecs_game.h"
 #include "../../deps/flecs_components_gui.h"
 #include "../../deps/flecs_systems_physics.h"
 #include "../../deps/flecs_systems_sokol.h"
