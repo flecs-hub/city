@@ -55,7 +55,7 @@
 extern "C" {
 #endif
 
-ECS_DECLARE(EcsCameraController);
+extern ECS_DECLARE(EcsCameraController);
 
 FLECS_GAME_API
 void FlecsGameImport(ecs_world_t *world);

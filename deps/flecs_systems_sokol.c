@@ -27211,6 +27211,7 @@ typedef struct sokol_fx_pass_desc_t {
     const char *shader;
     sokol_fx_output_desc_t outputs[SOKOL_MAX_FX_OUTPUTS];
     int8_t sample_count;
+    int8_t mipmap_count;
     sg_pixel_format color_format;
     const char *inputs[SOKOL_MAX_FX_INPUTS];
     const char *params[SOKOL_MAX_FX_INPUTS];
@@ -27237,6 +27238,7 @@ typedef struct sokol_fx_pass_t {
     int8_t input_count;
     
     int8_t sample_count;
+    int8_t mipmap_count;
     int8_t output_count;
     sokol_fx_output_t outputs[SOKOL_MAX_FX_OUTPUTS];
 
@@ -27255,6 +27257,7 @@ typedef struct SokolFx {
 
 typedef struct sokol_fx_resources_t {
     SokolFx hdr;
+    SokolFx fog;
 } sokol_fx_resources_t;
 
 /* Map input index to effect input */
@@ -27302,10 +27305,10 @@ int sokol_fx_add_pass(
     "    return dot(rgba, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 160581375.0));\n" \
     "}\n"
 
-SokolFx sokol_init_luminance(
+SokolFx sokol_init_hdr(
     int width, int height);
 
-SokolFx sokol_init_hdr(
+SokolFx sokol_init_fog(
     int width, int height);
 
 sokol_fx_resources_t* sokol_init_fx(
@@ -28063,7 +28066,55 @@ sokol_fx_resources_t* sokol_init_fx(
 {
     sokol_fx_resources_t *result = ecs_os_calloc_t(sokol_fx_resources_t);
     result->hdr = sokol_init_hdr(w, h);
+    result->fog = sokol_init_fog(w, h);
     return result;
+}
+
+
+static
+const char *shd_fog_header = SOKOL_DECODE_FLOAT_RGB;
+// #define LOG2 1.442695
+//float fogAmount = 1. - exp2(-u_fogDensity * u_fogDensity * fogDistance * fogDistance * LOG2);
+
+static
+const char *shd_fog =
+    "#define LOG2 1.442695\n"
+    "vec4 c = texture(hdr, uv);\n"
+    "float d = texture(depth, uv).r;\n"
+    "vec4 fog_color = vec4(0.3, 0.6, 0.9, 1.0);\n"
+    "float intensity = 1.0 - exp2(-d * d * density * density * LOG2);\n"
+    "intensity = clamp(intensity, 0.0, 1.0);\n"
+    "frag_color = mix(c, fog_color, intensity);\n";
+
+#define FOG_INPUT_HDR SOKOL_FX_INPUT(0)
+#define FOG_INPUT_DEPTH SOKOL_FX_INPUT(1)
+
+SokolFx sokol_init_fog(
+    int width, int height)
+{
+    ecs_trace("sokol: initialize fog effect");
+
+    SokolFx fx = {0};
+    fx.name = "Fog";
+
+    sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
+        .name = "fog",
+        .outputs = {{width, height}},
+        .shader_header = shd_fog_header,
+        .shader = shd_fog,
+        .color_format = SG_PIXELFORMAT_RGBA16F,
+        .mipmap_count = 2,
+        .inputs = { "hdr", "depth" },
+        .params = { "density" },
+        .steps = {
+            [0] = {
+                .inputs = { {FOG_INPUT_HDR}, {FOG_INPUT_DEPTH} },
+                .params = { 0.001 }
+            }
+        }
+    });
+
+    return fx;
 }
 
 
@@ -28192,6 +28243,7 @@ int sokol_fx_add_pass(
 
     sokol_fx_pass_t *pass = &fx->pass[fx->pass_count ++];
     pass->name = pass_desc->name;
+    pass->mipmap_count = pass_desc->mipmap_count;
     pass->sample_count = pass_desc->sample_count;
     pass->loop_count = 1;
     sg_pixel_format color_format = pass_desc->color_format;
@@ -28329,7 +28381,7 @@ int sokol_fx_add_pass(
         }
 
         pass->outputs[i].out[0] = sokol_target(output->width, 
-            output->height, pass->sample_count, 1, color_format);
+            output->height, pass->sample_count, pass->mipmap_count, color_format);
         pass->outputs[i].pass[0] = sg_make_pass(&(sg_pass_desc){
             .color_attachments[0].image = pass->outputs[i].out[0]
         });
@@ -28348,7 +28400,7 @@ int sokol_fx_add_pass(
         /* If multiple steps use output, create intermediate buffer */
         if (step_count > 1) {
             pass->outputs[i].out[1] = sokol_target(output->width, 
-                output->height, pass->sample_count, 1, color_format);
+                output->height, pass->sample_count, pass->mipmap_count, color_format);
             pass->outputs[i].pass[1] = sg_make_pass(&(sg_pass_desc){
                 .color_attachments[0].image = pass->outputs[i].out[1]
             });
@@ -28520,16 +28572,9 @@ const char* sokol_fs_depth(void)
         "in vec3 position;\n"
         "out vec4 frag_color;\n"
 
-        "vec4 encodeDepth(float v) {\n"
-        "    vec4 enc = vec4(1.0, 255.0, 65025.0, 160581375.0) * v;\n"
-        "    enc = fract(enc);\n"
-        "    enc -= enc.yzww * vec4(1.0/255.0,1.0/255.0,1.0/255.0,0.0);\n"
-        "    return enc;\n"
-        "}\n"
-
         "void main() {\n"
         "  float depth = length(position);\n"
-        "  frag_color = encodeDepth(depth);\n"
+        "  frag_color = vec4(depth);\n"
         "}\n";
 }
 
@@ -28602,7 +28647,7 @@ sokol_offscreen_pass_t sokol_init_depth_pass(
     ecs_rgb_t background_color = {0};
 
     return (sokol_offscreen_pass_t){
-        .pass_action = sokol_clear_action(background_color, false, true),
+        .pass_action = sokol_clear_action(background_color, true, true),
         .pass = sg_make_pass(&(sg_pass_desc){
             .color_attachments[0].image = color_target,
             .depth_stencil_attachment.image = depth_target
@@ -28871,7 +28916,7 @@ sokol_offscreen_pass_t sokol_init_scene_pass(
     int32_t sample_count,
     sokol_offscreen_pass_t *depth_pass_out) 
 {
-    sg_image color_target = sokol_target_rgba16f( w, h, sample_count, 4);
+    sg_image color_target = sokol_target_rgba16f( w, h, sample_count, 1);
     sg_image depth_target = sokol_target_depth(w, h, sample_count);
 
     ecs_trace("sokol: initialize scene pass");
@@ -29311,8 +29356,8 @@ void init_global_uniforms(
         }
 
         if (!cam.near && !cam.far) {
-            cam.near = 0.1;
-            cam.far = 1000;
+            cam.near = 1.5;
+            cam.far = 2000;
         }
 
         if (!cam.up[0] && !cam.up[1] && !cam.up[2]) {
@@ -29406,8 +29451,13 @@ void SokolRender(ecs_iter_t *it) {
     sokol_run_scene_pass(&r->scene_pass, &state);
     sg_image hdr = r->scene_pass.color_target;
 
-    // HDR
-    sokol_fx_run(&fx->hdr, 1, (sg_image[]){ hdr },
+    /* Fog */
+    sg_image fog = sokol_fx_run(&fx->fog, 2, (sg_image[]){ 
+        hdr, r->depth_pass.color_target },
+            &state, 0);
+
+    /* HDR */
+    sokol_fx_run(&fx->hdr, 1, (sg_image[]){ fog },
         &state, &r->screen_pass);
 }
 

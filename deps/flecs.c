@@ -5609,15 +5609,26 @@ void flecs_notify_on_set(
         for (i = 0; i < ids->count; i ++) {
             ecs_id_t id = ids->array[i];
             const ecs_type_info_t *info = get_c_info(world, id);
-            ecs_on_set_t on_set;
+            ecs_iter_action_t on_set;
             if (info && (on_set = info->lifecycle.on_set)) {
                 ecs_column_t *c = ecs_table_column_for_id(world, table, id);
                 ecs_size_t size = c->size;
+                void *ptr = ecs_vector_get_t(c->data, size, c->alignment, row);
                 ecs_assert(size != 0, ECS_INTERNAL_ERROR, NULL);
 
-                void *ptr = ecs_vector_get_t(c->data, size, c->alignment, row);
-                on_set(world, id, entities, ptr, flecs_itosize(size), 
-                    count, info->lifecycle.ctx);
+                ecs_iter_t it = {.term_count = 1};
+                it.entities = entities;
+                
+                flecs_iter_init(&it);
+                it.world = world;
+                it.real_world = world;
+                it.ptrs[0] = ptr;
+                it.sizes[0] = size;
+                it.ids[0] = id;
+                it.ctx = info->lifecycle.ctx;
+                it.count = count;
+                
+                on_set(&it);
             }
         }
     }
@@ -21376,23 +21387,8 @@ void ecs_meta_type_init_default_ctor(ecs_iter_t *it) {
 }
 
 static
-void member_on_set(
-    ecs_world_t *world,
-    ecs_entity_t component,
-    const ecs_entity_t *entity_ptr,
-    void *ptr,
-    size_t size,
-    int32_t count,
-    void *ctx)
-{
-    (void)world;
-    (void)component;
-    (void)entity_ptr;
-    (void)size;
-    (void)count;
-    (void)ctx;
-
-    EcsMember *mbr = ptr;
+void member_on_set(ecs_iter_t *it) {
+    EcsMember *mbr = it->ptrs[0];
     if (!mbr->count) {
         mbr->count = 1;
     }
@@ -26489,23 +26485,12 @@ bool rest_reply(
 }
 
 static
-void on_set_rest(
-    ecs_world_t *world,
-    ecs_entity_t component,
-    const ecs_entity_t *entities,
-    void *ptr,
-    size_t size,
-    int32_t count,
-    void *ctx)
+void on_set_rest(ecs_iter_t *it)
 {
-    EcsRest *rest = ptr;
-
-    (void)component;
-    (void)size;
-    (void)ctx;
+    EcsRest *rest = it->ptrs[0];
 
     int i;
-    for(i = 0; i < count; i ++) {
+    for(i = 0; i < it->count; i ++) {
         if (!rest[i].port) {
             rest[i].port = ECS_REST_DEFAULT_PORT;
         }
@@ -26526,8 +26511,8 @@ void on_set_rest(
             continue;
         }
 
-        srv_ctx->world = world;
-        srv_ctx->entity = entities[i];
+        srv_ctx->world = it->world;
+        srv_ctx->entity = it->entities[i];
         srv_ctx->srv = srv;
         srv_ctx->rc = 1;
 
@@ -30561,14 +30546,18 @@ void ecs_set_component_actions_w_id(
 
     if (c_info->lifecycle_set) {
         ecs_assert(c_info->component == component, ECS_INTERNAL_ERROR, NULL);
-        ecs_check(c_info->lifecycle.ctor == lifecycle->ctor, 
+        ecs_check(!lifecycle->ctor || c_info->lifecycle.ctor == lifecycle->ctor, 
             ECS_INCONSISTENT_COMPONENT_ACTION, NULL);
-        ecs_check(c_info->lifecycle.dtor == lifecycle->dtor, 
+        ecs_check(!lifecycle->dtor || c_info->lifecycle.dtor == lifecycle->dtor, 
             ECS_INCONSISTENT_COMPONENT_ACTION, NULL);
-        ecs_check(c_info->lifecycle.copy == lifecycle->copy, 
+        ecs_check(!lifecycle->copy || c_info->lifecycle.copy == lifecycle->copy, 
             ECS_INCONSISTENT_COMPONENT_ACTION, NULL);
-        ecs_check(c_info->lifecycle.move == lifecycle->move, 
+        ecs_check(!lifecycle->move || c_info->lifecycle.move == lifecycle->move, 
             ECS_INCONSISTENT_COMPONENT_ACTION, NULL);
+
+        if (!c_info->lifecycle.on_set) {
+            c_info->lifecycle.on_set = lifecycle->on_set;
+        }
     } else {
         c_info->component = component;
         c_info->lifecycle = *lifecycle;
@@ -41094,15 +41083,21 @@ static ECS_MOVE(EcsIdentifier, dst, src, {
 
 })
 
-static ECS_ON_SET(EcsIdentifier, ptr, {
-    if (ptr->value) {
-        ptr->length = ecs_os_strlen(ptr->value);
-        ptr->hash = flecs_hash(ptr->value, ptr->length);
-    } else {
-        ptr->length = 0;
-        ptr->hash = 0;
+static
+void ecs_on_set(EcsIdentifier)(ecs_iter_t *it) {
+    EcsIdentifier *ptr = ecs_term(it, EcsIdentifier, 1);
+    
+    for (int i = 0; i < it->count; i ++) {
+        EcsIdentifier *cur = &ptr[i];
+        if (cur->value) {
+            cur->length = ecs_os_strlen(cur->value);
+            cur->hash = flecs_hash(cur->value, cur->length);
+        } else {
+            cur->length = 0;
+            cur->hash = 0;
+        }
     }
-})
+}
 
 /* Component lifecycle actions for EcsTrigger */
 static ECS_CTOR(EcsTrigger, ptr, {

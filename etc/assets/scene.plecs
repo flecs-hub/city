@@ -1,31 +1,37 @@
 using flecs.components.gui
 using flecs.components.graphics
+using flecs.components.transform
 using flecs.city
 using flecs.game
 
 my_city = City{
-  blocks_x: 40,
-  blocks_y: 40,
-  min_building_height: 10,
-  max_building_height: 50,
+  blocks_x: 10,
+  blocks_y: 10,
+  block_size: 20,
+  road_width: 13,
+  min_building_height: 5,
+  max_building_height: 25,
   tree_chance: 0.5,
-  park_chance: 0.5
+  park_chance: 0.3,
+  park_with_trees_chance: 0.5,
+  modern_chance: 0.1,
+  traffic_frequency: 10
 }
 
 // App
 light = DirectionalLight{
-  direction: [0.1, -0.5, 0.1],
+  direction: [0.3, -0.5, 0.1],
   color: [0.96, 1.0, 0.93]
 }
 
-camera = Camera{
-  position: [0, -1.5, -101]
-  lookat: [0, 0, 60]
-  fov: 20,
-  up: [0, -1, 0]
+camera {
+  (CameraController)
+  Position3 = {0, -1.5, -100}
+  Camera = {
+    fov: 20,
+    up: [0, -1, 0]
+  }
 }
-
-camera = CameraController
 
 canvas {
   Canvas = {

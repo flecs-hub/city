@@ -1,10 +1,12 @@
 #include "flecs_game.h"
 
-static const float CameraDeceleration = 50.0;
-static const float CameraAcceleration = 25.0 + CameraDeceleration;
-static const float CameraAngularDeceleration = 10.0;
-static const float CameraAngularAcceleration = 5.0 + CameraAngularDeceleration;
-static const float CameraMaxSpeed = 20.0;
+ECS_DECLARE(EcsCameraController);
+
+static const float CameraDeceleration = 100.0;
+static const float CameraAcceleration = 50.0 + CameraDeceleration;
+static const float CameraAngularDeceleration = 5.0;
+static const float CameraAngularAcceleration = 2.5 + CameraAngularDeceleration;
+static const float CameraMaxSpeed = 30.0;
 
 static
 void CameraControllerAddPosition(ecs_iter_t *it) {
@@ -53,9 +55,9 @@ void CameraControllerSyncRotation(ecs_iter_t *it) {
     EcsRotation3 *r = ecs_term(it, EcsRotation3, 3);
 
     for (int i = 0; i < it->count; i ++) {
-        camera[i].lookat[0] = p[i].x + sin(r[i].y);
-        camera[i].lookat[1] = p[i].y;
-        camera[i].lookat[2] = p[i].z + cos(r[i].y);
+        camera[i].lookat[0] = p[i].x + sin(r[i].y) * cos(r[i].x);
+        camera[i].lookat[1] = p[i].y + sin(r[i].x);
+        camera[i].lookat[2] = p[i].z + cos(r[i].y) * cos(r[i].x);;
     }
 }
 
@@ -71,6 +73,7 @@ void CameraControllerAccelerate(ecs_iter_t *it) {
         float accel = CameraAcceleration * it->delta_time;
         float angular_accel = CameraAngularAcceleration * it->delta_time;
 
+        // Camera XZ movement
         if (input->keys[ECS_KEY_W].state) {
             v[i].x += sin(angle) * accel;
             v[i].z += cos(angle) * accel;
@@ -88,12 +91,29 @@ void CameraControllerAccelerate(ecs_iter_t *it) {
             v[i].x += cos(angle + GLM_PI) * accel;
             v[i].z -= sin(angle + GLM_PI) * accel;
         }
-        
+
+        // Camera Y movement
         if (input->keys[ECS_KEY_E].state) {
-            av[i].y += angular_accel;
+            v[i].y -= accel;
         }
         if (input->keys[ECS_KEY_Q].state) {
+            v[i].y += accel;
+        }
+
+        // Camera Y rotation
+        if (input->keys[ECS_KEY_RIGHT].state) {
+            av[i].y += angular_accel;
+        }
+        if (input->keys[ECS_KEY_LEFT].state) {
             av[i].y -= angular_accel;
+        }
+
+        // Camera X rotation
+        if (input->keys[ECS_KEY_UP].state) {
+            av[i].x -= angular_accel;
+        }
+        if (input->keys[ECS_KEY_DOWN].state) {
+            av[i].x += angular_accel;
         }
     }
 }
@@ -116,6 +136,7 @@ static
 void CameraControllerDecelerate(ecs_iter_t *it) {
     EcsVelocity3 *v = ecs_term(it, EcsVelocity3, 1);
     EcsAngularVelocity *av = ecs_term(it, EcsAngularVelocity, 2);
+    EcsRotation3 *r = ecs_term(it, EcsRotation3, 3);
 
     float dt = it->delta_time;
 
@@ -137,7 +158,17 @@ void CameraControllerDecelerate(ecs_iter_t *it) {
         camera_controller_decel(&v[i].y, CameraDeceleration * fabs(vn3[1]), dt);
         camera_controller_decel(&v[i].z, CameraDeceleration * fabs(vn3[2]), dt);
 
+        camera_controller_decel(&av[i].x, CameraAngularDeceleration, dt);
         camera_controller_decel(&av[i].y, CameraAngularDeceleration, dt);
+
+        if (r[i].x > M_PI / 2.0) {
+            r[i].x = M_PI / 2.0 - 0.0001;
+            av[i].x = 0;
+        }
+        if (r[i].x < -M_PI / 2.0) {
+            r[i].x = -(M_PI / 2.0) + 0.0001;
+            av[i].x = 0;
+        }
     }
 }
 
@@ -195,6 +226,7 @@ void FlecsGameImport(ecs_world_t *world) {
     ECS_SYSTEM(world, CameraControllerDecelerate, EcsOnUpdate,
         [inout]  flecs.components.physics.Velocity3,
         [inout]  flecs.components.physics.AngularVelocity,
+        [inout]  flecs.components.transform.Rotation3,
         [filter] CameraController);
 }
 

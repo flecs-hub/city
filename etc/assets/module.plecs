@@ -40,9 +40,13 @@ with Prefab {
     Rgb = {0.2, 0.3, 0.15}
   }
 
+  Prefab(ModernBuilding) {
+      Specular = {specular_power: 1.5, shininess: 0.8}
+  }
+
   Prefab(LanternLight) {
       Rgb = {0.03, 0.05, 0.03}
-      Emissive = {2.2}
+      Emissive = {2.4}
   }
 
   Lantern {
@@ -84,7 +88,8 @@ with Prefab {
   }
 
   Prefab(StreetMaterial) {
-    Rgb = {0.1, 0.1, 0.1}
+    Rgb = {0.05, 0.05, 0.05}
+    Specular = {specular_power: 0.1, shininess: 1.0}
   }
 
   Street : StreetMaterial { }
@@ -93,9 +98,45 @@ with Prefab {
     Rgb = {0.2, 0.2, 0.2}
   }
 
-  Ac {
-    Rgb = {0.9, 0.9, 0.9}
-    Box = {2.0, 1.0, 1.0}
+  Wheel {
+    Box = {0.3, 0.5, 0.5}
+    Rgb = {0.01, 0.01, 0.01}
+  }
+
+  BackLight {
+    Box = {0.2, 0.2, 0.05}
+    Rgb = {5.0, 0.0, 0.0}
+    Emissive = {1.0}
+  }
+
+  FrontLight {
+    Box = {0.2, 0.2, 0.05}
+    Rgb = {2.1, 2.1, 2.0}
+    Emissive = {1.0}
+  }
+
+  Car {
+    Top {
+      Position3 = {y: -0.8, z: -0.2}
+      Box = {1.0, 0.5, 2.0}
+      Rgb = {0.005, 0.05, 0.1}
+    }
+    Bottom {
+      Position3 = {y: -0.5}
+      Box = {1.0, 0.5, 3.0}
+      Rgb = {0.005, 0.05, 0.1}
+    }
+
+    Wheel_LF : Wheel { Position3 = {x: -0.4, y: -0.25, z: 1.0} }
+    Wheel_RF : Wheel { Position3 = {x: 0.4, y: -0.25, z: 1.0} }
+    Wheel_LB : Wheel { Position3 = {x: -0.4, y: -0.25, z: -1.0} }
+    Wheel_RB : Wheel { Position3 = {x: 0.4, y: -0.25, z: -1.0} }
+
+    FrontLight_L : FrontLight { Position3 = {x: -0.35, y: -0.5, z: 1.5} }
+    FrontLight_R : FrontLight { Position3 = {x: 0.35, y: -0.5, z: 1.5} }
+
+    BackLight_L : BackLight { Position3 = {x: -0.35, y: -0.5, z: -1.5} }
+    BackLight_R : BackLight { Position3 = {x: 0.35, y: -0.5, z: -1.5} }
   }
 }
 
