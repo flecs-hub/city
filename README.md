@@ -19,7 +19,7 @@ bake upgrade
 
 Then run:
 ```
-bake run flecs-hub/playground
+bake run flecs-hub/city
 ```
 
 Have fun!
