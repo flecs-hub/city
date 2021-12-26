@@ -5,7 +5,11 @@
         "use": [
             "flecs",
             "flecs.game",
+            "flecs.components.transform",
+            "flecs.components.physics",
             "flecs.components.gui",
+            "flecs.components.geometry",
+            "flecs.components.graphics",
             "flecs.systems.physics",
             "flecs.systems.sokol"
         ],

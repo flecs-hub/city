@@ -34,11 +34,11 @@
 #ifndef __EMSCRIPTEN__
 #define SOKOL_SHADER_HEADER SOKOL_SHADER_VERSION SOKOL_SHADER_PRECISION
 #define SOKOL_SHADER_VERSION "#version 330\n"
-#define SOKOL_SHADER_PRECISION "precision mediump float;\n"
+#define SOKOL_SHADER_PRECISION "precision highp float;\n"
 #else
 #define SOKOL_SHADER_HEADER SOKOL_SHADER_VERSION SOKOL_SHADER_PRECISION
 #define SOKOL_SHADER_VERSION  "#version 300 es\n"
-#define SOKOL_SHADER_PRECISION "precision mediump float;\n"
+#define SOKOL_SHADER_PRECISION "precision highp float;\n"
 #endif
 
 #ifdef NDEBUG
@@ -7303,7 +7303,10 @@ _SOKOL_PRIVATE void _sg_gl_apply_bindings(
                 SOKOL_ASSERT((gl_shd_img->gl_tex_slot != -1) && gl_tex);
                 _sg_gl_cache_bind_texture(gl_shd_img->gl_tex_slot, img->gl.target, gl_tex);
                 if (img->cmn.render_target && (img->cmn.num_mipmaps > 1)) {
-                    glGenerateMipmap(GL_TEXTURE_2D);   
+                    if (img->cmn.upd_frame_index != _sg.frame_index) {
+                        glGenerateMipmap(GL_TEXTURE_2D);
+                        img->cmn.upd_frame_index = _sg.frame_index;
+                    }
                 }
             }
         }
@@ -27067,7 +27070,15 @@ SOKOL_API_IMPL sg_context_desc sapp_sgcontext(void) {
 #define SOKOL_MAX_FX_OUTPUTS (8)
 #define SOKOL_MAX_FX_PASS (8)
 #define SOKOL_MAX_FX_PARAMS (32)
-#define SOKOL_SHADOW_MAP_SIZE (1024)
+#define SOKOL_SHADOW_MAP_SIZE (4096)
+#define SOKOL_DEFAULT_DEPTH_NEAR (1.5)
+#define SOKOL_DEFAULT_DEPTH_FAR (1000.0)
+
+#ifndef __EMSCRIPTEN__
+#define SOKOL_HIGH_DPI true
+#else
+#define SOKOL_HIGH_DPI false
+#endif
 
 /* Immutable resources used by different components to avoid duplication */
 typedef struct sokol_resources_t {
@@ -27080,17 +27091,35 @@ typedef struct sokol_resources_t {
     sg_buffer box;
     sg_buffer box_indices;
     sg_buffer box_normals;
+
+    sg_image noise_texture;
 } sokol_resources_t;
 
 typedef struct sokol_global_uniforms_t {
+    mat4 mat_v;
+    mat4 mat_p;
     mat4 mat_vp;
+    mat4 inv_mat_p;
+    
     mat4 light_mat_v;
     mat4 light_mat_vp;
 
     vec3 light_ambient;
     vec3 light_direction;
     vec3 light_color;
+    
     vec3 eye_pos;
+    vec3 eye_up;
+    vec3 eye_lookat;
+
+    float t;
+    float dt;
+    float aspect;
+    float near;
+    float far;
+    float fov;
+    bool ortho;
+
     float shadow_map_size;
 } sokol_global_uniforms_t;
 
@@ -27105,9 +27134,6 @@ typedef struct sokol_render_state_t {
     ecs_rgb_t ambient_light;
     int32_t width;
     int32_t height;
-    float aspect;
-    float delta_time;
-    float world_time;
 
     sokol_resources_t *resources;
     sokol_global_uniforms_t uniforms;
@@ -27127,11 +27153,19 @@ typedef struct sokol_offscreen_pass_t {
 #define SOKOL_RESOURCES_H
 
 sg_image sokol_target_rgba8(
+    const char *label,
+    int32_t width, 
+    int32_t height,
+    int32_t sample_count);
+
+sg_image sokol_target_rgba16(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count);
 
 sg_image sokol_target_rgba16f(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count,
@@ -27143,11 +27177,14 @@ sg_image sokol_target_depth(
     int32_t sample_count);
 
 sg_image sokol_target(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count,
     int32_t num_mipmaps,
     sg_pixel_format format);
+
+sg_image sokol_noise_texture(int32_t width, int32_t height);
 
 sg_buffer sokol_buffer_quad(void);
 
@@ -27258,6 +27295,7 @@ typedef struct SokolFx {
 typedef struct sokol_fx_resources_t {
     SokolFx hdr;
     SokolFx fog;
+    SokolFx ssao;
 } sokol_fx_resources_t;
 
 /* Map input index to effect input */
@@ -27292,23 +27330,66 @@ int sokol_fx_add_pass(
 #ifndef SOKOL_FX_H
 #define SOKOL_FX_H
 
-#define SOKOL_ENCODE_FLOAT_RGB \
-    "vec4 float_to_rgb(float v) {\n" \
-    "    vec4 enc = vec4(1.0, 255.0, 65025.0, 160581375.0) * v;\n" \
-    "    enc = fract(enc);\n" \
-    "    enc -= enc.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);\n" \
-    "    return enc;\n" \
+#define SOKOL_DEPTH_C 0.05
+#define SOKOL_LOG_DEPTH
+
+#define SOKOL_SHADER_FUNC_FLOAT_TO_RGBA \
+    "vec4 float_to_rgba(const in float v) {\n" \
+    "  vec4 enc = vec4(1.0, 255.0, 65025.0, 160581375.0) * v;\n" \
+    "  enc = fract(enc);\n" \
+    "  enc -= enc.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);\n" \
+    "  return enc;\n" \
+    "}\n\n"
+
+#define SOKOL_SHADER_FUNC_RGBA_TO_FLOAT \
+    "float rgba_to_float(const in vec4 rgba) {\n" \
+    "  return dot(rgba, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 160581375.0));\n" \
+    "}\n\n"
+
+#define SOKOL_SHADER_FUNC_POW2 \
+    "float pow2(const in float v) {\n" \
+    "  return v * v;\n" \
+    "}\n\n"
+
+#ifdef SOKOL_LOG_DEPTH
+#define SOKOL_SHADER_FUNC_RGBA_TO_DEPTH__(C) \
+    "float rgba_to_depth(vec4 rgba) {\n" \
+    "  float d = rgba_to_float(rgba);\n" \
+    "  d *= log("#C" * u_far + 1.0);\n" \
+    "  d = exp(d);\n" \
+    "  d -= 1.0;\n" \
+    "  d /= "#C";\n" \
+    "  return d;\n" \
+    "}\n\n"
+#else
+#define SOKOL_SHADER_FUNC_RGBA_TO_DEPTH__(C) \
+    "float rgba_to_depth(vec4 rgba) {\n" \
+    "  float d = rgba_to_float(rgba);\n" \
+    "  return d * u_far;\n" \
+    "}\n\n"
+#endif
+
+#define SOKOL_SHADER_FUNC_RGBA_TO_DEPTH_(C) \
+    SOKOL_SHADER_FUNC_RGBA_TO_DEPTH__(C)
+
+#define SOKOL_SHADER_FUNC_RGBA_TO_DEPTH \
+    SOKOL_SHADER_FUNC_RGBA_TO_DEPTH_(SOKOL_DEPTH_C)
+
+#define SOKOL_SHADER_FUNC_RGBA_TO_DEPTH_LOG \
+    "float rgba_to_depth_log(vec4 rgba) {\n" \
+    "  return rgba_to_float(rgba);\n" \
     "}\n"
 
-#define SOKOL_DECODE_FLOAT_RGB \
-    "float rgb_to_float(vec4 rgba) {\n" \
-    "    return dot(rgba, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 160581375.0));\n" \
-    "}\n"
+extern const char *shd_blur_hdr;
+extern const char *shd_blur;
 
 SokolFx sokol_init_hdr(
     int width, int height);
 
 SokolFx sokol_init_fog(
+    int width, int height);
+
+SokolFx sokol_init_ssao(
     int width, int height);
 
 sokol_fx_resources_t* sokol_init_fx(
@@ -27483,6 +27564,7 @@ typedef struct SokolGeometry {
 
 typedef struct SokolGeometryQuery {
     ecs_entity_t component;
+    bool static_geometry;
     ecs_query_t *parent_query;
     ecs_query_t *solid;
     ecs_query_t *emissive;
@@ -27666,6 +27748,9 @@ void sokol_input_action(const sapp_event* evt, sokol_app_ctx_t *ctx) {
     case SAPP_EVENTTYPE_KEY_DOWN:
         key_down(key_get(input, key_code(evt->key_code)));
         break;
+    case SAPP_EVENTTYPE_RESIZED:
+        // TODO
+        break;
     default:
         break;
     }
@@ -27724,10 +27809,8 @@ int sokol_run_action(
         .window_title = title,
         .width = width,
         .height = height,
-        .sample_count = 2,
-#ifndef __EMSCRIPTEN__        
-        .high_dpi = true,
-#endif
+        .sample_count = 1,
+        .high_dpi = SOKOL_HIGH_DPI,
         .gl_force_gles2 = false
     });
 
@@ -27799,7 +27882,7 @@ sokol_offscreen_pass_t sokol_init_shadow_pass(
     };
 
     result.depth_target = sokol_target_depth(size, size, 1);
-    result.color_target = sokol_target_rgba8(size, size, 1);
+    result.color_target = sokol_target_rgba8("Shadow map", size, size, 1);
 
     result.pass = sg_make_pass(&(sg_pass_desc){
         .color_attachments[0].image = result.color_target,
@@ -27916,11 +27999,9 @@ const char *shd_threshold =
     "float p = min(l_norm * l_norm, l_norm);\n"
     "frag_color = c * p;\n";
 
-static
 const char *shd_blur_hdr =
     "const float gauss[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);\n";
 
-static
 const char *shd_blur =
     "float offset = 0.0;\n"
     "vec4 result = gauss[0] * texture(tex, vec2(uv.x, uv.y));\n"
@@ -27954,7 +28035,8 @@ const char *shd_hdr =
     "b = b + pow(b_clip, 3.0);\n"
     "c = c + b;\n"
     "c = pow(c, vec3(1.0 / gamma));\n"
-    "frag_color = vec4(c, 1.0);\n";
+    "frag_color = vec4(c, 1.0);\n"
+    ;
 
 #define FX_INPUT_HDR (0)
 #define FX_INPUT_LUM (1)
@@ -28029,7 +28111,7 @@ SokolFx sokol_init_hdr(
 
     int bloom = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
         .name = "bloom",
-        .outputs = {{width, height}},
+        .outputs = {{256}},
         .shader = shd_blend,
         .color_format = SG_PIXELFORMAT_RGBA16F,
         .inputs = { "dst", "src" },
@@ -28061,30 +28143,265 @@ SokolFx sokol_init_hdr(
 }
 
 
+// Based on https://threejs.org/examples/webgl_postprocessing_sao.html
+
+static
+const char *shd_ssao_header = 
+    // Increase/decrease to trade quality for performance
+    "#define NUM_SAMPLES 10\n"
+    // The sample kernel uses a spiral pattern so most samples are concentrated
+    // close to the center. 
+    "#define NUM_RINGS 3\n"
+    "#define KERNEL_RADIUS 35.0\n"
+    // Intensity of the effect.
+    "#define INTENSITY 1.0\n"
+    // Max threshold prevents darkening objects that are far away
+    "#define MAX_THRESHOLD 220.0\n"
+    // Min threshold decreases halo's around objects
+    "#define MIN_THRESHOLD 1.0001\n"
+    // Misc params, tweaked to match the renderer
+    "#define BIAS 0.2\n"
+    "#define SCALE 1.0\n"
+    // Derived constants
+    "#define ANGLE_STEP ((PI2 * float(NUM_RINGS)) / float(NUM_SAMPLES))\n"
+    "#define INV_NUM_SAMPLES (1.0 / float(NUM_SAMPLES))\n"
+    "#define INV_NUM_SAMPLES (1.0 / float(NUM_SAMPLES))\n"
+
+    SOKOL_SHADER_FUNC_FLOAT_TO_RGBA
+    SOKOL_SHADER_FUNC_RGBA_TO_FLOAT
+    SOKOL_SHADER_FUNC_RGBA_TO_DEPTH
+    SOKOL_SHADER_FUNC_POW2
+
+    "highp float rand( const in vec2 uv ) {\n"
+    "    const highp float a = 12.9898, b = 78.233, c = 43758.5453;\n"
+    "    highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );\n"
+    "    return fract( sin( sn ) * c );\n"
+    "}\n"
+
+    "float getDepth(const in vec2 t_uv) {\n"
+    "    return rgba_to_depth(texture(t_depth, t_uv));\n"
+    "}\n"
+
+    "float getViewZ(const in float depth) {\n"
+    "    return (u_near * u_far) / (depth - u_far);\n"
+    "}\n"
+
+    // Compute position in world space from depth & projection matrix
+    "vec3 getViewPosition( const in vec2 screenPosition, const in float depth, const in float viewZ ) {\n"
+    "    float clipW = u_mat_p[2][3] * viewZ + u_mat_p[3][3];\n"
+    "    vec4 clipPosition = vec4( ( vec3( screenPosition, depth ) - 0.5 ) * 2.0, 1.0 );\n"
+    "    clipPosition *= clipW; // unprojection.\n"
+    "    return ( u_inv_mat_p * clipPosition ).xyz;\n"
+    "}\n"
+
+    // Compute normal from derived position. Should at some point replace it
+    // with reading from a normal buffer so it works correctly with smooth
+    // shading / normal maps.
+    "vec3 getViewNormal( const in vec3 viewPosition, const in vec2 t_uv ) {\n"
+    "    return normalize( cross( dFdx( viewPosition ), dFdy( viewPosition ) ) );\n"
+    "}\n"
+
+    "float scaleDividedByCameraFar;\n"
+
+    // Compute occlusion of single sample
+    "float getOcclusion( const in vec3 centerViewPosition, const in vec3 centerViewNormal, const in vec3 sampleViewPosition ) {\n"
+    "    vec3 viewDelta = sampleViewPosition - centerViewPosition;\n"
+    "    float viewDistance = length( viewDelta );\n"
+    "    float scaledScreenDistance = scaleDividedByCameraFar * viewDistance;\n"
+    "    float n_dot_d = dot(centerViewNormal, viewDelta);\n"
+    "    float scaled_n_dot_d = max(0.0, n_dot_d / scaledScreenDistance - BIAS);\n"
+    "    float result = scaled_n_dot_d / (1.0 + pow2(scaledScreenDistance));\n"
+    "    if (result > MAX_THRESHOLD) {\n"
+    "      result = 0.0;\n"
+    "    }\n"
+    "    return clamp(result, MIN_THRESHOLD, 2.0);\n"
+    "}\n"
+
+    "float getAmbientOcclusion( const in vec3 centerViewPosition, float centerDepth ) {\n"
+    "  scaleDividedByCameraFar = SCALE / u_far;\n"
+    "  vec3 centerViewNormal = getViewNormal( centerViewPosition, uv );\n"
+    
+    "  float angle = rand( uv ) * PI2;\n"
+    "  vec2 radius = vec2( KERNEL_RADIUS * INV_NUM_SAMPLES );\n"
+
+    // Use smaller kernels for objects farther away from the camera
+    "  radius /= u_target_size * centerDepth * 0.05;\n"
+    // Make sure tha the sample radius isn't less than a single texel, as this
+    // introduces noise
+    "  radius = max(radius, 5.0 / u_target_size);\n"
+    
+    "  vec2 radiusStep = radius;\n"
+    "  float occlusionSum = 0.0;\n"
+
+    // Collect occlusion samples
+    "  for( int i = 0; i < NUM_SAMPLES; i ++ ) {\n"
+    "    vec2 sampleUv = uv + vec2( cos( angle ), sin( angle ) ) * radius;\n"
+
+    //   Don't sample outside of texture coords to prevent edge artifacts
+    "    sampleUv = clamp(sampleUv, EPSILON, 1.0 - EPSILON);\n"
+
+    "    radius += radiusStep;\n"
+    "    angle += ANGLE_STEP;\n"
+
+    "    float sampleDepth = getDepth( sampleUv );\n"
+    "    float sampleDepthNorm = sampleDepth / u_far;\n"
+
+    "    float sampleViewZ = getViewZ( sampleDepth );\n"
+    "    vec3 sampleViewPosition = getViewPosition( sampleUv, sampleDepthNorm, sampleViewZ );\n"
+    "    occlusionSum += getOcclusion( centerViewPosition, centerViewNormal, sampleViewPosition );\n"
+    "  }\n"
+
+    "  return occlusionSum * (float(INTENSITY) / (float(NUM_SAMPLES)));\n"
+    "}\n"
+    ;
+
+static
+const char *shd_ssao =
+    // Depth (range = 0 .. u_far)
+    "float centerDepth = getDepth( uv );\n"
+    // Depth (range = 0 .. 1)
+    "float centerDepthNorm = centerDepth / u_far;\n"
+
+    "float centerViewZ = getViewZ( centerDepth );\n"
+    "vec3 viewPosition = getViewPosition( uv, centerDepthNorm, centerViewZ );\n"
+    "float ambientOcclusion = getAmbientOcclusion( viewPosition, centerDepth );\n"
+
+    // Store value as rgba to increase precision
+    "frag_color = float_to_rgba(ambientOcclusion);\n"
+    ;
+
+static
+const char *shd_blend_mult_header = 
+    SOKOL_SHADER_FUNC_RGBA_TO_FLOAT
+    ;
+
+static
+const char *shd_blend_mult =
+    "float ambientOcclusion = rgba_to_float(texture(t_occlusion, uv));\n"
+    "frag_color = (1.0 - ambientOcclusion) * texture(t_scene, uv);\n"
+    ;
+
+#define SSAO_INPUT_SCENE SOKOL_FX_INPUT(0)
+#define SSAO_INPUT_DEPTH SOKOL_FX_INPUT(1)
+
+SokolFx sokol_init_ssao(
+    int width, int height)
+{
+    ecs_trace("sokol: initialize fog effect");
+
+    SokolFx fx = {0};
+    fx.name = "SSAO";
+
+    int ao_width = width, ao_height = height;
+
+    if (SOKOL_HIGH_DPI) {
+        ao_width /= 2.0;
+        ao_height /= 2.0;
+    }
+
+    // Ambient occlusion shader 
+    int32_t ao = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
+        .name = "ssao",
+        .outputs = {{ao_width, ao_height}},
+        .shader_header = shd_ssao_header,
+        .shader = shd_ssao,
+        .color_format = SG_PIXELFORMAT_RGBA8,
+        .inputs = { "t_depth" },
+        .steps = {
+            [0] = {
+                .inputs = { {SSAO_INPUT_DEPTH} }
+            }
+        }
+    });
+
+    // Blur to reduce the noise, so we can keep sample count low
+    int blur = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
+        .name = "blur",
+        .outputs = {{512}},
+        .shader_header = shd_blur_hdr,
+        .shader = shd_blur,
+        .color_format = SG_PIXELFORMAT_RGBA8,
+        .inputs = { "tex" },
+        .params = { "horizontal" },
+        .steps = {
+            [0] = { 
+                .name = "ssao hblur",
+                .inputs = { {SOKOL_FX_PASS(ao)} },
+                .params = { 1.0 },
+                .loop_count = 2
+            },
+            [1] = { 
+                .name = "ssao vblur",
+                .inputs = { { -1 } },
+                .params = { 0.0 }
+            }
+        }
+    });
+
+    // Multiply ambient occlusion with the scene
+    sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
+        .name = "blend",
+        .outputs = {{width, height}},
+        .shader_header = shd_blend_mult_header,
+        .shader = shd_blend_mult,
+        .color_format = SG_PIXELFORMAT_RGBA16F,
+        .inputs = { "t_scene", "t_occlusion" },
+        .steps = {
+            [0] = {
+                .inputs = { {SSAO_INPUT_SCENE}, {SOKOL_FX_PASS(blur)} }
+            }
+        }
+    });
+
+    return fx;
+}
+
+
+
+
+#define BLEND_INPUT_1 SOKOL_FX_INPUT(0)
+#define BLEND_INPUT_2 SOKOL_FX_INPUT(1)
+
+SokolFx sokol_init_blend(
+    int width, int height)
+{
+    ecs_trace("sokol: initialize fog effect");
+
+    SokolFx fx = {0};
+    fx.name = "Blend";
+
+
+    return fx;
+}
+
+
 sokol_fx_resources_t* sokol_init_fx(
     int w, int h)
 {
     sokol_fx_resources_t *result = ecs_os_calloc_t(sokol_fx_resources_t);
     result->hdr = sokol_init_hdr(w, h);
     result->fog = sokol_init_fog(w, h);
+    result->ssao = sokol_init_ssao(w, h);
     return result;
 }
 
 
 static
-const char *shd_fog_header = SOKOL_DECODE_FLOAT_RGB;
-// #define LOG2 1.442695
-//float fogAmount = 1. - exp2(-u_fogDensity * u_fogDensity * fogDistance * fogDistance * LOG2);
+const char *shd_fog_header = 
+    SOKOL_SHADER_FUNC_RGBA_TO_FLOAT
+    SOKOL_SHADER_FUNC_RGBA_TO_DEPTH
+    SOKOL_SHADER_FUNC_RGBA_TO_DEPTH_LOG
+    ;
 
 static
 const char *shd_fog =
     "#define LOG2 1.442695\n"
     "vec4 c = texture(hdr, uv);\n"
-    "float d = texture(depth, uv).r;\n"
+    "float d = (rgba_to_depth(texture(depth, uv)) / u_far);\n"
     "vec4 fog_color = vec4(0.3, 0.6, 0.9, 1.0);\n"
-    "float intensity = 1.0 - exp2(-d * d * density * density * LOG2);\n"
-    "intensity = clamp(intensity, 0.0, 1.0);\n"
-    "frag_color = mix(c, fog_color, intensity);\n";
+    "float intensity = 1.0 - exp2(-(d * d) * u_density * u_density * LOG2);\n"
+    "frag_color = mix(c, fog_color, intensity);\n"
+    ;
 
 #define FOG_INPUT_HDR SOKOL_FX_INPUT(0)
 #define FOG_INPUT_DEPTH SOKOL_FX_INPUT(1)
@@ -28105,11 +28422,11 @@ SokolFx sokol_init_fog(
         .color_format = SG_PIXELFORMAT_RGBA16F,
         .mipmap_count = 2,
         .inputs = { "hdr", "depth" },
-        .params = { "density" },
+        .params = { "u_density" },
         .steps = {
             [0] = {
                 .inputs = { {FOG_INPUT_HDR}, {FOG_INPUT_DEPTH} },
-                .params = { 0.001 }
+                .params = { 1.5 }
             }
         }
     });
@@ -28186,8 +28503,18 @@ void sokol_run_screen_pass(
 
 
 typedef struct fx_uniforms_t {
+    float t;
+    float dt;
     float aspect;
+    float near;
+    float far;
+    float target_size[2];
 } fx_uniforms_t;
+
+typedef struct fx_mat_uniforms_t {
+    mat4 mat_p;
+    mat4 inv_mat_p;
+} fx_mat_uniforms_t;
 
 static
 char* fx_build_shader(
@@ -28198,9 +28525,21 @@ char* fx_build_shader(
     /* Add fx header */
     ecs_strbuf_appendstr(&shad, 
         SOKOL_SHADER_HEADER
+        "#define PI 3.1415926535897932384626433832795\n"
+        "#define PI2 (2.0 * PI)\n"
+        "#define EPSILON 1e-6f\n"
+
         "out vec4 frag_color;\n"
         "in vec2 uv;\n"
-        "uniform float u_aspect;\n");
+        "uniform float u_t;\n"
+        "uniform float u_dt;\n"
+        "uniform float u_aspect;\n"
+        "uniform float u_near;\n"
+        "uniform float u_far;\n"
+        "uniform vec2 u_target_size;\n"
+        "uniform mat4 u_mat_p;\n"
+        "uniform mat4 u_inv_mat_p;\n"
+        "uniform sampler2D u_noise;\n");
 
     /* Add inputs */
     for (int32_t i = 0; i < SOKOL_MAX_FX_INPUTS; i ++) {
@@ -28282,17 +28621,33 @@ int sokol_fx_add_pass(
                 [0] = {
                     .size = sizeof(fx_uniforms_t),
                     .uniforms = {
-                        [0] = { .name="u_aspect", .type=SG_UNIFORMTYPE_FLOAT }
+                        [0] = { .name="u_t", .type=SG_UNIFORMTYPE_FLOAT },
+                        [1] = { .name="u_dt", .type=SG_UNIFORMTYPE_FLOAT },
+                        [2] = { .name="u_aspect", .type=SG_UNIFORMTYPE_FLOAT },
+                        [3] = { .name="u_near", .type=SG_UNIFORMTYPE_FLOAT },
+                        [4] = { .name="u_far", .type=SG_UNIFORMTYPE_FLOAT },
+                        [5] = { .name="u_target_size", .type=SG_UNIFORMTYPE_FLOAT2 }
                     }
                 },
-                [1] = prog_ub
+                [1] = {
+                    .size = sizeof(fx_mat_uniforms_t),
+                    .uniforms = {
+                        [0] = { .name = "u_mat_p", .type = SG_UNIFORMTYPE_MAT4 },
+                        [1] = { .name = "u_inv_mat_p", .type = SG_UNIFORMTYPE_MAT4 }
+                    }
+                },
+                [2] = prog_ub
             }
         }
     };
 
+    /* Add noise texture by default */
+    prog.fs.images[0].name = "u_noise";
+    prog.fs.images[0].image_type = SG_IMAGETYPE_2D;
+
     /* Add inputs to program */
-    for (int32_t i = 0; i < SOKOL_MAX_FX_INPUTS; i ++) {
-        const char *input = pass_desc->inputs[i];
+    for (int32_t i = 1; i < SOKOL_MAX_FX_INPUTS; i ++) {
+        const char *input = pass_desc->inputs[i - 1];
         if (!input) {
             break;
         }
@@ -28380,7 +28735,7 @@ int sokol_fx_add_pass(
             output->height = output->width;
         }
 
-        pass->outputs[i].out[0] = sokol_target(output->width, 
+        pass->outputs[i].out[0] = sokol_target(fx->name, output->width, 
             output->height, pass->sample_count, pass->mipmap_count, color_format);
         pass->outputs[i].pass[0] = sg_make_pass(&(sg_pass_desc){
             .color_attachments[0].image = pass->outputs[i].out[0]
@@ -28399,7 +28754,7 @@ int sokol_fx_add_pass(
 
         /* If multiple steps use output, create intermediate buffer */
         if (step_count > 1) {
-            pass->outputs[i].out[1] = sokol_target(output->width, 
+            pass->outputs[i].out[1] = sokol_target(fx->name, output->width, 
                 output->height, pass->sample_count, pass->mipmap_count, color_format);
             pass->outputs[i].pass[1] = sg_make_pass(&(sg_pass_desc){
                 .color_attachments[0].image = pass->outputs[i].out[1]
@@ -28417,7 +28772,7 @@ int sokol_fx_add_pass(
 
 static
 void fx_draw(
-    sokol_resources_t *res,
+    sokol_render_state_t *state,
     SokolFx *fx,
     sg_image *inputs,
     sokol_fx_pass_t *pass,
@@ -28425,6 +28780,8 @@ void fx_draw(
     int32_t width,
     int32_t height)
 {
+    sokol_resources_t *res = state->resources;
+
     for (int32_t i = 0; i < pass->output_count; i ++) {
         pass->outputs[i].toggle = (pass->outputs[i].step_count - 1) % 2;
     }
@@ -28438,6 +28795,18 @@ void fx_draw(
 
     int32_t step_count = pass->step_count;
     int32_t step_last = step_count * pass->loop_count;
+
+    fx_mat_uniforms_t fs_mat_u;
+    glm_mat4_copy(state->uniforms.mat_p, fs_mat_u.mat_p);
+    glm_mat4_copy(state->uniforms.inv_mat_p, fs_mat_u.inv_mat_p);
+
+    fx_uniforms_t f_u = {
+        .t = state->uniforms.t,
+        .dt = state->uniforms.dt,
+        .aspect = state->uniforms.aspect,
+        .near = state->uniforms.near,
+        .far = state->uniforms.far,
+    };
 
     for (int32_t s = 0; s < step_last; s ++) {
         int8_t step_cur = s % step_count;
@@ -28466,21 +28835,25 @@ void fx_draw(
 
         sg_apply_pipeline(pass->pip);
 
-        fx_uniforms_t fs_u = {
-            .aspect = (float)width / (float)height
-        };
-
+        f_u.target_size[0] = output->width;
+        f_u.target_size[1] = output->height;
         sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, &(sg_range){
-            &fs_u, sizeof(fx_uniforms_t)
+            &f_u, sizeof(fx_uniforms_t) 
+        });
+
+        sg_apply_uniforms(SG_SHADERSTAGE_FS, 1, &(sg_range){
+            &fs_mat_u, sizeof(fx_mat_uniforms_t)
         });
 
         if (pass->param_count) {
-            sg_apply_uniforms(SG_SHADERSTAGE_FS, 1, &(sg_range){
+            sg_apply_uniforms(SG_SHADERSTAGE_FS, 2, &(sg_range){
                 step->params, pass->param_count * sizeof(float)
             });
         }
 
         sg_bindings bind = { .vertex_buffers = { res->quad } };
+        bind.fs_images[0] = res->noise_texture;
+
         for (int32_t i = 0; i < pass->input_count; i ++) {
             sokol_fx_input_t input = step->inputs[i];
 
@@ -28491,15 +28864,14 @@ void fx_draw(
             if (input.pass == -1) {
                 /* Previous version of current output (for pingponging) */
                 sokol_fx_output_t *io = &pass->outputs[step->output];
-                bind.fs_images[i] = io->out[!io->toggle];
+                bind.fs_images[i + 1] = io->out[!io->toggle];
             } else if (SOKOL_FX_IS_PASS(input.pass)) {
                 /* Pass level input */
-                bind.fs_images[i] = fx->pass[input.pass - SOKOL_MAX_FX_INPUTS]
+                bind.fs_images[i + 1] = fx->pass[input.pass - SOKOL_MAX_FX_INPUTS]
                     .outputs[input.index].out[0];
             } else {
-                // printf("bind %d @ %s.%s to input %d\n", i, pass->name, step->name, input.pass);
                 /* Effect level input */
-                bind.fs_images[i] = inputs[input.pass];
+                bind.fs_images[i + 1] = inputs[input.pass];
             }
         }
 
@@ -28524,19 +28896,18 @@ sg_image sokol_fx_run(
 
     int32_t width = state->width;
     int32_t height = state->height;
-    sokol_resources_t *res = state->resources;
     int32_t i = 0;
 
     /* Run passes */
     if (!screen_pass) {
         for (; i < fx->pass_count; i ++) {
-            fx_draw(res, fx, inputs, &fx->pass[i], NULL, width, height);
+            fx_draw(state, fx, inputs, &fx->pass[i], NULL, width, height);
         }
     } else {
         for (; i < fx->pass_count - 1; i ++) {
-            fx_draw(res, fx, inputs, &fx->pass[i], NULL, width, height);
+            fx_draw(state, fx, inputs, &fx->pass[i], NULL, width, height);
         }
-        fx_draw(res, fx, inputs, &fx->pass[i], screen_pass, width, height);
+        fx_draw(state, fx, inputs, &fx->pass[i], screen_pass, width, height);
     }
 
     return fx->pass[fx->pass_count - 1].outputs[0].out[0];
@@ -28548,12 +28919,16 @@ typedef struct depth_vs_uniforms_t {
 } depth_vs_uniforms_t;
 
 typedef struct depth_fs_uniforms_t {
-    vec3 eye_pos;    
+    vec3 eye_pos;
+    float near;
+    float far;
+    float depth_c;
+    float inv_log_far;
 } depth_fs_uniforms_t;
 
 const char* sokol_vs_depth(void) 
 {
-    return  SOKOL_SHADER_HEADER
+    return SOKOL_SHADER_HEADER
         "uniform mat4 u_mat_vp;\n"
         "uniform vec3 u_eye_pos;\n"
         "layout(location=0) in vec4 v_position;\n"
@@ -28567,19 +28942,41 @@ const char* sokol_vs_depth(void)
 
 const char* sokol_fs_depth(void) 
 {
-    return  SOKOL_SHADER_HEADER
+    return SOKOL_SHADER_HEADER
         "uniform vec3 u_eye_pos;\n"
+        "uniform float u_near;\n"
+        "uniform float u_far;\n"
+        "uniform float u_depth_c;\n"
+        "uniform float u_inv_log_far;\n"
         "in vec3 position;\n"
         "out vec4 frag_color;\n"
 
+        SOKOL_SHADER_FUNC_FLOAT_TO_RGBA
+
+#ifdef SOKOL_LOG_DEPTH
+        "vec4 depth_to_rgba(vec3 pos) {\n"
+        "  vec3 pos_norm = pos / u_far;\n"
+        "  float d = length(pos_norm) * u_far;\n"
+        "  d = clamp(d, 0.0, u_far * 0.98);\n"
+        "  d = log(u_depth_c * d + 1.0) / log(u_depth_c * u_far + 1.0);\n"
+        "  return float_to_rgba(d);\n"
+        "}\n"
+#else
+        "vec4 depth_to_rgba(vec3 pos) {\n"
+        "  vec3 pos_norm = pos / u_far;\n"
+        "  float d = length(pos_norm);\n"
+        "  d = clamp(d, 0.0, 1.0);\n"
+        "  return float_to_rgba(d);\n"
+        "}\n"
+#endif
+
         "void main() {\n"
-        "  float depth = length(position);\n"
-        "  frag_color = vec4(depth);\n"
+        "  frag_color = depth_to_rgba(position);\n"
         "}\n";
 }
 
 sg_pipeline init_depth_pipeline(int32_t sample_count) {
-    ecs_trace("sokol: initialize depth pipieline");
+    ecs_trace("sokol: initialize depth pipeline");
 
     /* create an instancing shader */
     sg_shader shd = sg_make_shader(&(sg_shader_desc){
@@ -28595,7 +28992,11 @@ sg_pipeline init_depth_pipeline(int32_t sample_count) {
             [0] = {
                 .size = sizeof(depth_fs_uniforms_t),
                 .uniforms = {
-                    [0] = { .name="u_eye_pos", .type=SG_UNIFORMTYPE_FLOAT3 }
+                    [0] = { .name="u_eye_pos", .type=SG_UNIFORMTYPE_FLOAT3 },
+                    [1] = { .name="u_near", .type=SG_UNIFORMTYPE_FLOAT },
+                    [2] = { .name="u_far", .type=SG_UNIFORMTYPE_FLOAT },
+                    [3] = { .name="u_depth_c", .type = SG_UNIFORMTYPE_FLOAT },
+                    [4] = { .name="u_inv_log_far", .type = SG_UNIFORMTYPE_FLOAT }
                 },
             }            
         },
@@ -28628,7 +29029,7 @@ sg_pipeline init_depth_pipeline(int32_t sample_count) {
             .write_enabled = true
         },
         .colors = {{
-            .pixel_format = SG_PIXELFORMAT_RGBA16F
+            .pixel_format = SG_PIXELFORMAT_RGBA8
         }},
         .cull_mode = SG_CULLMODE_BACK,
         .sample_count = sample_count
@@ -28643,8 +29044,8 @@ sokol_offscreen_pass_t sokol_init_depth_pass(
 {
     ecs_trace("sokol: initialize depth pass");
 
-    sg_image color_target = sokol_target_rgba16f(w, h, sample_count, 1);
-    ecs_rgb_t background_color = {0};
+    sg_image color_target = sokol_target_rgba8("Depth color target", w, h, sample_count);
+    ecs_rgb_t background_color = {1, 1, 1};
 
     return (sokol_offscreen_pass_t){
         .pass_action = sokol_clear_action(background_color, true, true),
@@ -28689,6 +29090,10 @@ void sokol_run_depth_pass(
     
     depth_fs_uniforms_t fs_u;
     glm_vec3_copy(state->uniforms.eye_pos, fs_u.eye_pos);
+    fs_u.near = state->uniforms.near;
+    fs_u.far = state->uniforms.far;
+    fs_u.depth_c = SOKOL_DEPTH_C;
+    fs_u.inv_log_far = 1.0 / log(SOKOL_DEPTH_C * fs_u.far + 1.0);
 
     /* Render to offscreen texture so screen-space effects can be applied */
     sg_begin_pass(pass->pass, &pass->pass_action);
@@ -28714,6 +29119,7 @@ void sokol_run_depth_pass(
 
 
 typedef struct scene_vs_uniforms_t {
+    mat4 mat_v;
     mat4 mat_vp;
     mat4 light_mat_vp;
 } scene_vs_uniforms_t;
@@ -28741,8 +29147,9 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
             [0] = {
                 .size = sizeof(scene_vs_uniforms_t),
                 .uniforms = {
-                    [0] = { .name="u_mat_vp", .type=SG_UNIFORMTYPE_MAT4 },
-                    [1] = { .name="u_light_vp", .type=SG_UNIFORMTYPE_MAT4 }
+                    [0] = { .name="u_mat_v", .type=SG_UNIFORMTYPE_MAT4 },
+                    [1] = { .name="u_mat_vp", .type=SG_UNIFORMTYPE_MAT4 },
+                    [2] = { .name="u_light_vp", .type=SG_UNIFORMTYPE_MAT4 }
                 },
             }
         },
@@ -28770,6 +29177,7 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
         .vs.source =
             SOKOL_SHADER_HEADER
             "uniform mat4 u_mat_vp;\n"
+            "uniform mat4 u_mat_v;\n"
             "uniform mat4 u_light_vp;\n"
             LAYOUT(POSITION_I)  "in vec3 v_position;\n"
             LAYOUT(NORMAL_I)    "in vec3 v_normal;\n"
@@ -28793,6 +29201,7 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
 
         .fs.source =
             SOKOL_SHADER_HEADER
+            "uniform mat4 u_light_vp;\n"
             "uniform vec3 u_light_ambient;\n"
             "uniform vec3 u_light_direction;\n"
             "uniform vec3 u_light_color;\n"
@@ -28834,6 +29243,7 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
             "  float specular_power = material.x;\n"
             "  float shininess = max(material.y, 1.0);\n"
             "  float emissive = material.z;\n"
+
             "  vec3 l = normalize(u_light_direction);\n"
             "  vec3 n = normalize(normal);\n"
             "  float n_dot_l = dot(n, l);\n"
@@ -28842,13 +29252,13 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
             "    vec3 v = normalize(u_eye_pos - position.xyz);\n"
             "    vec3 r = reflect(-l, n);\n"
 
-            "    vec3 light_pos = light_position.xyz / light_position.w;\n"
-            "    vec2 sm_uv = (light_pos.xy + 1.0) * 0.5;\n"
-            "    float depth = light_position.z;\n"
-            "    float texel_size = 1.0 / u_shadow_map_size;\n"
-            "    float s = sampleShadowPCF(shadow_map, sm_uv, texel_size, depth);\n"
-            "    s = max(s, emissive);\n"
-            "    s = 1.0;\n"
+            // "    vec3 light_pos = light_position.xyz / light_position.w;\n"
+            // "    vec2 sm_uv = (light_pos.xy + 1.0) * 0.5;\n"
+            // "    float depth = light_position.z;\n"
+            // "    float texel_size = 1.0 / u_shadow_map_size;\n"
+            // "    float s = sampleShadowPCF(shadow_map, sm_uv, texel_size, depth);\n"
+            // "    s = max(s, emissive);\n"
+            "    float s = 1.0;\n" // disable shadows for now
 
             "    float r_dot_v = max(dot(r, v), 0.0);\n"
             "    float l_shiny = pow(r_dot_v * n_dot_l, shininess);\n"
@@ -28868,11 +29278,11 @@ sg_pipeline init_scene_pipeline(int32_t sample_count) {
         .shader = shd,
         .index_type = SG_INDEXTYPE_UINT16,
         .layout = {
-        .buffers = {
-            [COLOR_I] =     { .stride = 16, .step_func=SG_VERTEXSTEP_PER_INSTANCE },
-            [MATERIAL_I] =  { .stride = 12, .step_func=SG_VERTEXSTEP_PER_INSTANCE },
-            [TRANSFORM_I] = { .stride = 64, .step_func=SG_VERTEXSTEP_PER_INSTANCE }
-        },
+            .buffers = {
+                [COLOR_I] =     { .stride = 16, .step_func=SG_VERTEXSTEP_PER_INSTANCE },
+                [MATERIAL_I] =  { .stride = 12, .step_func=SG_VERTEXSTEP_PER_INSTANCE },
+                [TRANSFORM_I] = { .stride = 64, .step_func=SG_VERTEXSTEP_PER_INSTANCE }
+            },
 
             .attrs = {
                 /* Static geometry */
@@ -28916,7 +29326,7 @@ sokol_offscreen_pass_t sokol_init_scene_pass(
     int32_t sample_count,
     sokol_offscreen_pass_t *depth_pass_out) 
 {
-    sg_image color_target = sokol_target_rgba16f( w, h, sample_count, 1);
+    sg_image color_target = sokol_target_rgba16f("Scene color target", w, h, sample_count, 1);
     sg_image depth_target = sokol_target_depth(w, h, sample_count);
 
     ecs_trace("sokol: initialize scene pass");
@@ -28970,6 +29380,7 @@ void sokol_run_scene_pass(
     sokol_render_state_t *state)
 {
     scene_vs_uniforms_t vs_u;
+    glm_mat4_copy(state->uniforms.mat_v, vs_u.mat_v);
     glm_mat4_copy(state->uniforms.mat_vp, vs_u.mat_vp);
     glm_mat4_copy(state->uniforms.light_mat_vp, vs_u.light_mat_vp);
     
@@ -29077,6 +29488,8 @@ uint16_t box_indices[] = {
     22, 21, 20,  23, 22, 20,
 };
 
+#define EPSILON 0.0000001
+
 static
 void compute_flat_normals(
     vec3 *vertices,
@@ -29090,7 +29503,17 @@ void compute_flat_normals(
         glm_vec3_sub(vertices[indices[v + 0]], vertices[indices[v + 1]], vec1);
         glm_vec3_sub(vertices[indices[v + 0]], vertices[indices[v + 2]], vec2);
         glm_vec3_crossn(vec2, vec1, normal);
-        
+
+        if (fabs(normal[0]) < GLM_FLT_EPSILON) {
+            normal[0] = 0;
+        }
+        if (fabs(normal[1]) < GLM_FLT_EPSILON) {
+            normal[1] = 0;
+        }
+        if (fabs(normal[2]) < GLM_FLT_EPSILON) {
+            normal[2] = 0;
+        }
+
         glm_vec3_copy(normal, normals_out[indices[v + 0]]);
         glm_vec3_copy(normal, normals_out[indices[v + 1]]);
         glm_vec3_copy(normal, normals_out[indices[v + 2]]);
@@ -29098,6 +29521,7 @@ void compute_flat_normals(
 }
 
 sg_image sokol_target(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count,
@@ -29118,7 +29542,7 @@ sg_image sokol_target(
             .mag_filter = SG_FILTER_LINEAR,
             .sample_count = sample_count,
             .num_mipmaps = num_mipmaps,
-            .label = "render target"
+            .label = label
         };
     } else {
         img_desc = (sg_image_desc){
@@ -29132,7 +29556,7 @@ sg_image sokol_target(
             .mag_filter = SG_FILTER_LINEAR,
             .sample_count = sample_count,
             .num_mipmaps = num_mipmaps,
-            .label = "render target"
+            .label = label
         };
     }
 
@@ -29140,20 +29564,31 @@ sg_image sokol_target(
 }
 
 sg_image sokol_target_rgba8(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count)
 {
-    return sokol_target(width, height, sample_count, 1, SG_PIXELFORMAT_RGBA8);
+    return sokol_target(label, width, height, sample_count, 1, SG_PIXELFORMAT_RGBA8);
+}
+
+sg_image sokol_target_rgba16(
+    const char *label,
+    int32_t width, 
+    int32_t height,
+    int32_t sample_count)
+{
+    return sokol_target(label, width, height, sample_count, 1, SG_PIXELFORMAT_RGBA16);
 }
 
 sg_image sokol_target_rgba16f(
+    const char *label,
     int32_t width, 
     int32_t height,
     int32_t sample_count,
     int32_t num_mipmaps) 
 {
-    return sokol_target(width, height, sample_count, num_mipmaps, SG_PIXELFORMAT_RGBA16F);
+    return sokol_target(label, width, height, sample_count, num_mipmaps, SG_PIXELFORMAT_RGBA16F);
 }
 
 sg_image sokol_target_depth(
@@ -29169,7 +29604,7 @@ sg_image sokol_target_depth(
         .min_filter = SG_FILTER_LINEAR,
         .mag_filter = SG_FILTER_LINEAR,
         .sample_count = sample_count,
-        .label = "depth-image"
+        .label = "Depth target"
     };
 
     return sg_make_image(&img_desc);
@@ -29289,9 +29724,37 @@ const char* sokol_vs_passthrough(void)
             "}\n";
 }
 
+sg_image sokol_noise_texture(
+    int32_t width, 
+    int32_t height)
+{
+    uint32_t *data = ecs_os_malloc_n(uint32_t, width * height);
+    for (int32_t x = 0; x < width; x ++) {
+        for (int32_t y = 0; y < height; y ++) {
+            data[x + y * x] = rand();
+        }
+    }
+
+    sg_image img = sg_make_image(&(sg_image_desc){
+        .width = width,
+        .height = height,
+        .wrap_u = SG_WRAP_REPEAT,
+        .wrap_v = SG_WRAP_REPEAT,
+        .pixel_format = SG_PIXELFORMAT_R8,
+        .label = "Noise texture",
+        .data.subimage[0][0] = {
+            .ptr = data,
+            .size = width * height * sizeof(char)
+        }
+    });
+
+    return img;
+}
+
 
 ECS_COMPONENT_DECLARE(SokolRenderer);
 
+/* Static geometry/texture resources */
 static
 sokol_resources_t init_resources(void) {
     return (sokol_resources_t){
@@ -29303,10 +29766,13 @@ sokol_resources_t init_resources(void) {
 
         .box = sokol_buffer_box(),
         .box_indices = sokol_buffer_box_indices(),
-        .box_normals = sokol_buffer_box_normals()
+        .box_normals = sokol_buffer_box_normals(),
+
+        .noise_texture = sokol_noise_texture(16, 16)
     };
 }
 
+/* Light matrix (used for shadow map calculation) */
 static
 void init_light_mat_vp(
     sokol_render_state_t *state)
@@ -29316,14 +29782,14 @@ void init_light_mat_vp(
     vec3 lookat = {0.0, 0.0, 0.0};
     vec3 up = {0, 1, 0};
 
-    glm_ortho(-7, 7, -7, 7, -10, 30, mat_p);
+    glm_ortho(-1000, 1000, -1000, 1000, 1.0, 50, mat_p);
 
     vec4 dir = {
         state->light->direction[0],
         state->light->direction[1],
         state->light->direction[2]
     };
-    glm_vec4_scale(dir, 50, dir);
+    glm_vec4_scale(dir, 1.0, dir);
     glm_lookat(dir, lookat, up, mat_v);
 
     mat4 light_proj = {
@@ -29337,51 +29803,58 @@ void init_light_mat_vp(
     glm_mat4_mul(mat_p, mat_v, state->uniforms.light_mat_vp);
 }
 
+/* Compute uniform values for camera & light that are used across shaders */
 static
 void init_global_uniforms(
     sokol_render_state_t *state)
 {
-    vec3 eye = {0, 0, -2.0};
-    vec3 center = {0.0, 0.0, 0.0};
-    vec3 up = {0.0, 1.0, 0.0};
+    /* Default camera parameters */
+    state->uniforms.near = SOKOL_DEFAULT_DEPTH_NEAR;
+    state->uniforms.far = SOKOL_DEFAULT_DEPTH_FAR;
+    state->uniforms.fov = 30;
+    state->uniforms.ortho = false;
 
-    mat4 mat_p;
-    mat4 mat_v;
-
-    /* Compute perspective & lookat matrix */
+    /* If camera is set, get values */
     if (state->camera) {
         EcsCamera cam = *state->camera;
-        if (!cam.fov) {
-            cam.fov = 30;
+
+        if (cam.fov) {
+            state->uniforms.fov = cam.fov;
         }
 
-        if (!cam.near && !cam.far) {
-            cam.near = 1.5;
-            cam.far = 2000;
+        if (cam.near || cam.far) {
+            state->uniforms.near = cam.near;
+            state->uniforms.far = cam.far;
         }
 
-        if (!cam.up[0] && !cam.up[1] && !cam.up[2]) {
-            cam.up[1] = 1.0;
+        if (cam.up[0] || !cam.up[1] || !cam.up[2]) {
+            glm_vec3_copy(cam.up, state->uniforms.eye_up);
         }
 
-        if (!cam.ortho) {
-            glm_perspective(cam.fov, state->aspect, cam.near, cam.far, mat_p);
-        } else {
-            glm_ortho_default(state->aspect, mat_p);
-        }
+        state->uniforms.ortho = cam.ortho;
 
-        glm_lookat(cam.position, cam.lookat, cam.up, mat_v);
         glm_vec3_copy(cam.position, state->uniforms.eye_pos);
-    } else {
-        glm_perspective(30, state->aspect, 0.5, 100.0, mat_p);
-        glm_lookat(eye, center, up, mat_v);
-        glm_vec3_copy(eye, state->uniforms.eye_pos);
+        glm_vec3_copy(cam.lookat, state->uniforms.eye_lookat);
     }
 
-    /* Compute view/projection matrix */
-    glm_mat4_mul(mat_p, mat_v, state->uniforms.mat_vp);
+    /* Orthographic/perspective projection matrix */
+    if (state->uniforms.ortho) {
+        glm_ortho_default(state->uniforms.aspect, state->uniforms.mat_p);
+    } else {
+        glm_perspective(
+            state->uniforms.fov, 
+            state->uniforms.aspect, 
+            state->uniforms.near, 
+            state->uniforms.far, 
+            state->uniforms.mat_p);
+    }
+    glm_mat4_inv(state->uniforms.mat_p, state->uniforms.inv_mat_p);
 
-    /* Get light parameters */
+    /* View + view * projection matrix */
+    glm_lookat(state->uniforms.eye_pos, state->uniforms.eye_lookat, state->uniforms.eye_up, state->uniforms.mat_v);
+    glm_mat4_mul(state->uniforms.mat_p, state->uniforms.mat_v, state->uniforms.mat_vp);
+
+    /* Light parameters */
     if (state->light) {
         EcsDirectionalLight l = *state->light;
         glm_vec3_copy(l.direction, state->uniforms.light_direction);
@@ -29390,9 +29863,9 @@ void init_global_uniforms(
         glm_vec3_zero(state->uniforms.light_direction);
         glm_vec3_zero(state->uniforms.light_color);
     }
-
     glm_vec3_copy((float*)&state->ambient_light, state->uniforms.light_ambient);
 
+    /* Shadow map size */
     state->uniforms.shadow_map_size = SOKOL_SHADOW_MAP_SIZE;
 }
 
@@ -29409,11 +29882,14 @@ void SokolRender(ecs_iter_t *it) {
         ecs_err("sokol: multiple canvas instances unsupported");
     }
 
+    const ecs_world_info_t *stats = ecs_get_world_info(world);
+
     /* Initialize renderer state */
-    state.delta_time = it->delta_time;
+    state.uniforms.dt = it->delta_time;
+    state.uniforms.t = stats->world_time_total;
     state.width = sapp_width();
     state.height = sapp_height();
-    state.aspect = (float)state.width / (float)state.height;
+    state.uniforms.aspect = (float)state.width / (float)state.height;
     state.world = world;
     state.q_scene = q_buffers->query;
     state.shadow_map = r->shadow_pass.color_target;
@@ -29451,14 +29927,21 @@ void SokolRender(ecs_iter_t *it) {
     sokol_run_scene_pass(&r->scene_pass, &state);
     sg_image hdr = r->scene_pass.color_target;
 
+    /* Ssao */
+    sg_image ssao = sokol_fx_run(&fx->ssao, 2, (sg_image[]){ 
+        hdr, r->depth_pass.color_target }, 
+            &state, 0);
+
     /* Fog */
-    sg_image fog = sokol_fx_run(&fx->fog, 2, (sg_image[]){ 
-        hdr, r->depth_pass.color_target },
+    sg_image scene_with_fog = sokol_fx_run(&fx->fog, 2, (sg_image[]){ 
+        ssao, r->depth_pass.color_target },
             &state, 0);
 
     /* HDR */
-    sokol_fx_run(&fx->hdr, 1, (sg_image[]){ fog },
+    sokol_fx_run(&fx->hdr, 1, (sg_image[]){ scene_with_fog },
         &state, &r->screen_pass);
+
+    // sokol_run_screen_pass(&r->screen_pass, &r->resources, &state, ssao);
 }
 
 static
@@ -29493,7 +29976,7 @@ void SokolInitRenderer(ecs_iter_t *it) {
 
     sokol_offscreen_pass_t depth_pass;
     sokol_offscreen_pass_t scene_pass = sokol_init_scene_pass(
-        canvas->background_color, w, h, 2, &depth_pass);
+        canvas->background_color, w, h, 1, &depth_pass);
 
     ecs_set(world, SokolRendererInst, SokolRenderer, {
         .canvas = it->entities[0],
@@ -29581,7 +30064,7 @@ void SokolInitMaterials(ecs_iter_t *it) {
     materials->array[0].shininess = 1.0;
     materials->array[0].emissive = 0.0;
 
-    if (!ecs_query_changed(q->query)) {
+    if (!ecs_query_changed(q->query, 0)) {
         materials->changed = false;
         return;
     }
@@ -29683,6 +30166,7 @@ ECS_COMPONENT_DECLARE(SokolGeometryQuery);
 
 ECS_DECLARE(SokolRectangleGeometry);
 ECS_DECLARE(SokolBoxGeometry);
+ECS_DECLARE(SokolBoxStaticGeometry);
 
 ECS_CTOR(SokolGeometry, ptr, {
     *ptr = (SokolGeometry) {0};
@@ -29758,15 +30242,29 @@ void init_box(
     ecs_world_t *world,
     sokol_resources_t *resources) 
 {
-    SokolGeometry *g = ecs_get_mut(
-        world, ecs_id(SokolBoxGeometry), SokolGeometry, NULL);
-    ecs_assert(g != NULL, ECS_INTERNAL_ERROR, NULL);
+    if (SokolBoxGeometry) {
+        SokolGeometry *g = ecs_get_mut(
+            world, ecs_id(SokolBoxGeometry), SokolGeometry, NULL);
+        ecs_assert(g != NULL, ECS_INTERNAL_ERROR, NULL);
 
-    g->vertex_buffer = resources->box;
-    g->normal_buffer = resources->box_normals;
-    g->index_buffer = resources->box_indices;
-    g->index_count = sokol_box_index_count();
-    g->populate = populate_box;
+        g->vertex_buffer = resources->box;
+        g->normal_buffer = resources->box_normals;
+        g->index_buffer = resources->box_indices;
+        g->index_count = sokol_box_index_count();
+        g->populate = populate_box;
+    }
+
+    if (SokolBoxStaticGeometry) {
+        SokolGeometry *g = ecs_get_mut(
+            world, ecs_id(SokolBoxStaticGeometry), SokolGeometry, NULL);
+        ecs_assert(g != NULL, ECS_INTERNAL_ERROR, NULL);
+
+        g->vertex_buffer = resources->box;
+        g->normal_buffer = resources->box_normals;
+        g->index_buffer = resources->box_indices;
+        g->index_count = sokol_box_index_count();
+        g->populate = populate_box;
+    }
 }
 
 void sokol_init_geometry(
@@ -29783,14 +30281,22 @@ void populate_buffer(
     sokol_instances_t *instances,
     ecs_query_t *query)
 {
-    if (ecs_query_changed(query)) {
+    if (ecs_query_changed(query, 0)) {
         const ecs_world_t *world = ecs_get_world(query);
         ecs_iter_t qit = ecs_query_iter(world, query);
+        bool changed = false;
 
         /* Count number of instances to ensure GPU buffers are big enough */
         int32_t count = 0;
         while (ecs_query_next(&qit)) {
             count += qit.count;
+            if (ecs_query_changed(query, &qit)) {
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
         }
 
         if (!count) {
@@ -29834,9 +30340,9 @@ void populate_buffer(
             while (ecs_query_next(&qit)) {
                 EcsTransform3 *t = ecs_term(&qit, EcsTransform3, 1);
                 SokolMaterialId *mat = ecs_term(&qit, SokolMaterialId, 3);
-                EcsRgb *c = ecs_term(&qit, EcsRgb, 4);
+                EcsRgb *c = ecs_term(&qit, EcsRgb, 5);
 
-                if (ecs_term_is_owned(&qit, 4)) {
+                if (ecs_term_is_owned(&qit, 5)) {
                     for (i = 0; i < qit.count; i ++) {
                         colors[cursor + i].r = c[i].r;
                         colors[cursor + i].g = c[i].g;
@@ -29863,6 +30369,8 @@ void populate_buffer(
                 }
 
                 memcpy(&transforms[cursor], t, qit.count * sizeof(mat4));
+
+                ecs_assert(geometry->populate != NULL, ECS_INTERNAL_ERROR, NULL);
                 geometry->populate(&qit, cursor, transforms);
                 cursor += qit.count;
             }
@@ -29926,7 +30434,7 @@ void SokolPopulateGeometry(
     }
 }
 
-static 
+static
 void CreateGeometryQueries(ecs_iter_t *it) {
     ecs_world_t *world = it->world;
     SokolGeometryQuery *sb = ecs_term(it, SokolGeometryQuery, 1);
@@ -29942,6 +30450,12 @@ void CreateGeometryQueries(ecs_iter_t *it) {
                 comp_path);
         ecs_os_free(comp_path);
 
+        if (sb[i].static_geometry) {
+            strcat(expr, ", flecs.components.geometry.StaticGeometry");
+        } else {
+            strcat(expr, ", !flecs.components.geometry.StaticGeometry");
+        }
+
         sb[i].parent_query = ecs_query_init(world, &(ecs_query_desc_t) {
             .filter.expr = expr,
             .filter.instanced = true
@@ -29956,7 +30470,7 @@ void CreateGeometryQueries(ecs_iter_t *it) {
         sb[i].solid = ecs_query_init(world, &(ecs_query_desc_t) {
             .filter.expr = subexpr,
             .filter.instanced = true,
-            .parent = sb[i].parent_query
+            .parent = sb[i].parent_query,
         });
 
         sprintf(subexpr, 
@@ -30018,11 +30532,18 @@ void FlecsSystemsSokolGeometryImport(
     /* Support for box primitive */
     ECS_ENTITY_DEFINE(world, SokolBoxGeometry, Geometry);
         ecs_set(world, SokolBoxGeometry, SokolGeometryQuery, {
-            .component = ecs_id(EcsBox)
+            .component = ecs_id(EcsBox),
+            .static_geometry = false
         });
 
-    /* Create system that manages buffers for rectangles */
-    ECS_SYSTEM(world, SokolPopulateGeometry, EcsPostLoad, 
+    ECS_ENTITY_DEFINE(world, SokolBoxStaticGeometry, Geometry);
+        ecs_set(world, SokolBoxStaticGeometry, SokolGeometryQuery, {
+            .component = ecs_id(EcsBox),
+            .static_geometry = true
+        });
+
+    /* Create system that manages buffers */
+    ECS_SYSTEM(world, SokolPopulateGeometry, EcsPreStore, 
         Geometry, [in] GeometryQuery);       
 }
 

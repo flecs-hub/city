@@ -19,11 +19,11 @@
 #ifndef __EMSCRIPTEN__
 #define SOKOL_SHADER_HEADER SOKOL_SHADER_VERSION SOKOL_SHADER_PRECISION
 #define SOKOL_SHADER_VERSION "#version 330\n"
-#define SOKOL_SHADER_PRECISION "precision mediump float;\n"
+#define SOKOL_SHADER_PRECISION "precision highp float;\n"
 #else
 #define SOKOL_SHADER_HEADER SOKOL_SHADER_VERSION SOKOL_SHADER_PRECISION
 #define SOKOL_SHADER_VERSION  "#version 300 es\n"
-#define SOKOL_SHADER_PRECISION "precision mediump float;\n"
+#define SOKOL_SHADER_PRECISION "precision highp float;\n"
 #endif
 
 #ifdef NDEBUG
@@ -7288,7 +7288,10 @@ _SOKOL_PRIVATE void _sg_gl_apply_bindings(
                 SOKOL_ASSERT((gl_shd_img->gl_tex_slot != -1) && gl_tex);
                 _sg_gl_cache_bind_texture(gl_shd_img->gl_tex_slot, img->gl.target, gl_tex);
                 if (img->cmn.render_target && (img->cmn.num_mipmaps > 1)) {
-                    glGenerateMipmap(GL_TEXTURE_2D);   
+                    if (img->cmn.upd_frame_index != _sg.frame_index) {
+                        glGenerateMipmap(GL_TEXTURE_2D);
+                        img->cmn.upd_frame_index = _sg.frame_index;
+                    }
                 }
             }
         }

@@ -1,6 +1,8 @@
 #define FLECS_COMPONENTS_GEOMETRY_IMPL
 #include "flecs_components_geometry.h"
 
+ECS_DECLARE(EcsStaticGeometry);
+
 ECS_COPY(EcsMesh, dst, src, {
     if (dst->vertices) {
         ecs_os_free(dst->vertices);
@@ -46,5 +48,7 @@ void FlecsComponentsGeometryImport(
     ECS_META_COMPONENT(world, EcsSquare);
     ECS_META_COMPONENT(world, EcsBox);
     ECS_META_COMPONENT(world, EcsCircle);
+
+    ECS_TAG_DEFINE(world, EcsStaticGeometry);
 }
 

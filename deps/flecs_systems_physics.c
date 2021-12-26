@@ -117,16 +117,16 @@ void FlecsSystemsPhysicsImport(
     });    
 
     ECS_SYSTEM(world, EcsMove2, EcsOnUpdate, 
-        flecs.components.transform.Position2,
-        flecs.components.physics.Velocity2);
+        [inout] flecs.components.transform.Position2,
+        [in] flecs.components.physics.Velocity2);
 
     ECS_SYSTEM(world, EcsMove3, EcsOnUpdate, 
-        flecs.components.transform.Position3,
-        flecs.components.physics.Velocity3);
+        [inout] flecs.components.transform.Position3,
+        [in] flecs.components.physics.Velocity3);
 
     ECS_SYSTEM(world, EcsRotate3, EcsOnUpdate, 
-        flecs.components.transform.Rotation3,
-        flecs.components.physics.AngularVelocity);
+        [inout] flecs.components.transform.Rotation3,
+        [in] flecs.components.physics.AngularVelocity);
 
     ECS_SYSTEM(world, EcsAddBoxCollider, EcsPostLoad, 
         flecs.components.physics.Collider,
@@ -187,7 +187,7 @@ void ecs_squery_update(
     ecs_assert(sq->q != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(sq->ot != NULL, ECS_INVALID_PARAMETER, NULL);
 
-    if (ecs_query_changed(sq->q)) {
+    if (ecs_query_changed(sq->q, 0)) {
         ecs_octree_clear(sq->ot);
 
         const ecs_world_t *world = ecs_get_world(sq->q);
