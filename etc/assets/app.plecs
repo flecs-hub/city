@@ -1,0 +1,31 @@
+using flecs.components.gui
+using flecs.components.graphics
+using flecs.components.transform
+using flecs.game
+
+light = DirectionalLight{
+  direction: [0.3, -1.0, 0.5]
+  color: [1.0, 1.05, 0.98]
+}
+
+camera {
+  (CameraController)
+  Position3 = {-83, -20.0, -250}
+  Rotation3 = {0.2}
+  Camera = {
+    fov: 20
+    up: [0, -1, 0]
+  }
+}
+
+canvas {
+  Canvas = {
+    title: "Flecs City"
+    width: 1200
+    height: 900
+    background_color: {0.3, 0.6, 0.9}
+    ambient_light: {0.03, 0.06, 0.09}
+    directional_light: light
+    camera: camera
+  }
+}

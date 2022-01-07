@@ -5,11 +5,12 @@ using flecs.components.transform
 Module(flecs.city) {
 
 with Prefab {
+  // Tree prefab
   Tree {
     with StaticGeometry {
       Ground {
-        Position3 = {0, -0.4, 0}
-        Box = {1.0, 0.3, 1.0}
+        Position3 = {0, -0.1, 0}
+        Box = {1.0, 0.2, 1.0}
         Rgb = {0.05, 0.05, 0.05}
       }
       Trunk {
@@ -30,33 +31,128 @@ with Prefab {
     }   
   }
 
+  // Tree, but enclosed in pavement
   SidewalkTree : Tree {
     with StaticGeometry {
       GroundEnclosing {
-        Position3 = {0, -0.275, 0}
-        Box = {1.3, 0.3, 1.3}
+        Position3 = {0, -0.05, 0}
+        Box = {1.3, 0.1, 1.3}
         Rgb = {0.3, 0.3, 0.3}
       }
     }
   }
 
+  // Bin prefab
+  BinMaterial {
+    Rgb = {0.04, 0.045, 0.04}
+    Specular = {specular_power: 0.5, shininess: 0.8}
+  }
+
+  BinFrame : BinMaterial {
+    Box = {0.07, 0.2, 0.07}
+  }
+
+  Bin {
+    with StaticGeometry {
+      Base : BinMaterial {
+        Position3 = {0, -0.4, 0}
+        Box = {0.5, 0.8, 0.5}
+      }
+      Cover : BinMaterial {
+        Position3 = {0, -1.0, 0}
+        Box = {0.5, 0.1, 0.5}
+      }
+      FrameTL : BinFrame {
+        Position3 = {-0.15, -0.9, -0.15}
+      }
+      FrameTR : BinFrame {
+        Position3 = {0.15, -0.9, -0.15}
+      }
+      FrameBL : BinFrame {
+        Position3 = {-0.15, -0.9, 0.15}
+      }
+      FrameBR : BinFrame {
+        Position3 = {0.15, -0.9, 0.15}
+      }
+    }
+  }
+
+  // Fire hydrant
+  HydrantMaterial {
+    Rgb = {0.5, 0.03, 0.03}
+    Specular = {specular_power: 0.1, shininess: 0.2}
+  }
+
+  Hydrant {
+    with StaticGeometry {
+      Base : HydrantMaterial {
+        Position3 = {0, -0.25, 0}
+        Box = {0.15, 0.5, 0.15}
+      }
+      Ring : HydrantMaterial {
+        Position3 = {0, -0.4, 0}
+        Box = {0.2, 0.03, 0.2}
+      }
+      Bar : HydrantMaterial {
+        Position3 = {0, -0.3, 0}
+        Box = {0.3, 0.06, 0.06}
+      }
+      Front : HydrantMaterial {
+        Position3 = {0, -0.3, -0.1}
+        Box = {0.1, 0.1, 0.1}
+      }
+    }
+  }
+
+  // Bench
+  BenchMaterial {
+    Rgb = {0.5, 0.4, 0.3}
+  }
+
+  BenchFootMaterial {
+    Rgb = {0.2, 0.2, 0.2}
+    Specular = {specular_power: 0.1, shininess: 0.3}
+  }
+
+  BenchFoot : BenchFootMaterial {
+    Box = {0.1, 0.3, 0.3}
+  }
+
+  Bench {
+    with StaticGeometry {
+      LeftFoot : BenchFoot {
+        Position3 = {-0.8, -0.15, 0}    
+      }
+      RightFoot : BenchFoot {
+        Position3 = {0.8, -0.15, 0}    
+      }
+      Top : BenchMaterial {
+        Position3 = {0, -0.304, 0}
+        Box = {2.0, 0.08, 0.5}
+      }
+    }
+  }
+
+  // Grass floor for park
   Park {
     (StaticGeometry)
     Rgb = {0.2, 0.3, 0.15}
   }
 
+  // Plaza
   Plaza {
     (StaticGeometry)
     Rgb = {0.11, 0.11, 0.1}
     Specular = {specular_power: 0.2, shininess: 1.5}
   }
 
+  // Building materials
   Building {
     (StaticGeometry)
   }
 
-  ModernBuilding {
-      Specular = {specular_power: 0.5, shininess: 0.8}
+  ModernBuilding : Building {
+    Specular = {specular_power: 0.5, shininess: 0.8}
   }
 
   StreetMaterial {
@@ -70,23 +166,23 @@ with Prefab {
 
   Pavement {
     (StaticGeometry)
-    Rgb = {0.2, 0.2, 0.2}
+    Rgb = {0.3, 0.3, 0.3}
   }
 
   LanternLight {
-      Rgb = {0.03, 0.05, 0.03}
-      Emissive = {2.4}
+    Rgb = {0.03, 0.05, 0.03}
+    Emissive = {2.4}
   }
 
   Lantern {
     with StaticGeometry {
       Base {
-        Position3 = {0, -0.25, 0}
+        Position3 = {0, -0.075, 0}
         Box = {0.5, 0.15, 0.5}
         Rgb = {0.03, 0.05, 0.03}
       }
       BaseCap {
-        Position3 = {0, -0.375, 0}
+        Position3 = {0, -0.175, 0}
         Box = {0.4, 0.1, 0.4}
         Rgb = {0.03, 0.05, 0.03}
       }

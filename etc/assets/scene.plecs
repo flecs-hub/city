@@ -5,57 +5,40 @@ using flecs.city
 using flecs.game
 
 my_city = City{
-  blocks_x: 10
-  blocks_y: 10
-  block_size: 20
-  road_width: 7
+  blocks_x: 20
+  blocks_y: 15
+  block_width: 15
+  block_height: 25
+  road_width: 5
 
   buildings: {
     min_height: 5
-    max_height: 25
+    max_height: 80
+    x_variation: 0.5
+    y_variation: 2.0
+    small_height: 25
+
     modern_chance: 0.2
-    skyscraper_chance: 0.05
+    skyscraper_chance: 0.1
+    backyard_chance: 1.0
   }
 
   parks: {
     chance: 0.1,
     tree_chance: 0.5
     plaza_chance: 0.05
-    tree_count: 3
+    tree_count: 8
   }
 
   props: {
-    tree_chance: 0.2
+    chance: 0.4
+    tree_chance: 0.1
+    bin_chance: 0.09
+    hydrant_chance: 0.03
+    bench_chance: 0.08
   }
 
-  traffic: { frequency: 0 }
+  traffic: { frequency: 0.0 }
 
   lanterns: true
-}
-
-// App
-light = DirectionalLight{
-  direction: [0.3, -1.0, 0.5]
-  color: [1.0, 1.05, 0.98]
-}
-
-camera {
-  (CameraController)
-  Position3 = {10, -2.0, -30}
-  Camera = {
-    fov: 20,
-    up: [0, -1, 0]
-  }
-}
-
-canvas {
-  Canvas = {
-    title: "Flecs City"
-    width: 1024
-    height: 800
-    background_color: {0.3, 0.6, 0.9}
-    ambient_light: {0.03, 0.06, 0.09}
-    directional_light: light
-    camera: camera
-  }
 }

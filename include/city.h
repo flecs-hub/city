@@ -14,11 +14,15 @@ extern "C" {
 #endif
 
 ECS_STRUCT(CityBuildings, {
-    int16_t size;
-    int16_t min_height;
+    int16_t min_height;      
     int16_t max_height;
+    int16_t min_width;
+    float x_variation;
+    float y_variation;
+    float small_height;
     float skyscraper_chance;
     float modern_chance;
+    float backyard_chance;
 });
 
 ECS_STRUCT(CityParks, {
@@ -33,6 +37,7 @@ ECS_STRUCT(CityProps, {
     float tree_chance;
     float bin_chance;
     float hydrant_chance;
+    float bench_chance;
 });
 
 ECS_STRUCT(CityTraffic, {
@@ -43,8 +48,10 @@ ECS_STRUCT(CityTraffic, {
 ECS_STRUCT(City, {
     int16_t blocks_x;
     int16_t blocks_y;
-    int16_t block_size;
+    int16_t block_width;
+    int16_t block_height;
     int16_t road_width;
+    int16_t pavement_width;
 
     bool lanterns;
     bool street_signs;

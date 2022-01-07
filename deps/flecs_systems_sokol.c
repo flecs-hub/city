@@ -4814,8 +4814,8 @@ _SOKOL_PRIVATE void _sg_dummy_update_image(_sg_image_t* img, const sg_image_data
     _SG_XMACRO(glTexImage2D,                      void, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * pixels)) \
     _SG_XMACRO(glGenVertexArrays,                 void, (GLsizei n, GLuint * arrays)) \
     _SG_XMACRO(glFrontFace,                       void, (GLenum mode)) \
-    _SG_XMACRO(glCullFace,                        void, (GLenum mode))
-
+    _SG_XMACRO(glCullFace,                        void, (GLenum mode)) \
+    _SG_XMACRO(glGenerateMipmap,                  void, (GLenum target))
 
 // generate GL function pointer typedefs
 #define _SG_XMACRO(name, ret, args) typedef ret (GL_APIENTRY* PFN_ ## name) args;
@@ -27072,7 +27072,7 @@ SOKOL_API_IMPL sg_context_desc sapp_sgcontext(void) {
 #define SOKOL_MAX_FX_PARAMS (32)
 #define SOKOL_SHADOW_MAP_SIZE (4096)
 #define SOKOL_DEFAULT_DEPTH_NEAR (1.5)
-#define SOKOL_DEFAULT_DEPTH_FAR (1000.0)
+#define SOKOL_DEFAULT_DEPTH_FAR (1500.0)
 
 #ifndef __EMSCRIPTEN__
 #define SOKOL_HIGH_DPI true
@@ -28287,10 +28287,10 @@ const char *shd_blend_mult =
 SokolFx sokol_init_ssao(
     int width, int height)
 {
-    ecs_trace("sokol: initialize fog effect");
+    ecs_trace("sokol: initialize ambient occlusion effect");
 
     SokolFx fx = {0};
-    fx.name = "SSAO";
+    fx.name = "AmbientOcclusion";
 
     int ao_width = width, ao_height = height;
 
@@ -28400,6 +28400,7 @@ const char *shd_fog =
     "float d = (rgba_to_depth(texture(depth, uv)) / u_far);\n"
     "vec4 fog_color = vec4(0.3, 0.6, 0.9, 1.0);\n"
     "float intensity = 1.0 - exp2(-(d * d) * u_density * u_density * LOG2);\n"
+    "intensity *= 1.1;\n"
     "frag_color = mix(c, fog_color, intensity);\n"
     ;
 
