@@ -38,7 +38,7 @@ my_city = City{
     bench_chance: 0.08
   }
 
-  traffic: { frequency: 0.0 }
+  traffic: { frequency: 0.1 }
 
   lanterns: true
 }

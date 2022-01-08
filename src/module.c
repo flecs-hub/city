@@ -616,7 +616,7 @@ void GenerateTraffic(ecs_iter_t *it) {
     for (int i = 0; i < it->count; i ++) {
         emit[i].elapsed += it->delta_time;
 
-        if (emit[i].elapsed > emit[i].frequency) {
+        if (emit[i].elapsed > (1.0f / emit[i].frequency)) {
             ecs_entity_t e = ecs_new_id(world);
             ecs_set_ptr(world, e, EcsVelocity3, &emit[i].initial_velocity);
             ecs_set_ptr(world, e, EcsRotation3, &emit[i].initial_rotation);
@@ -648,8 +648,9 @@ void ExpireTraffic(ecs_iter_t *it) {
         } else if(p[i].z > b[i].bottom) {
             to_delete = e;
         }
-
-        ecs_delete(world, to_delete);
+        if(to_delete){
+            ecs_delete(world, to_delete);
+        }
     }
 }
 
