@@ -16,8 +16,8 @@ ECS_CTOR(EcsCamera, ptr, {
     ptr->up[2] = 0.0f;
 
     ptr->fov = 30;
-    ptr->near = 0.1;
-    ptr->far = 1000;
+    ptr->near_ = 0.1;
+    ptr->far_ = 1000;
 })
 
 void FlecsComponentsGraphicsImport(

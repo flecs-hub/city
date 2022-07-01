@@ -2,10 +2,13 @@
 
 ECS_DECLARE(EcsCameraController);
 
-static const float CameraDeceleration = 100.0;
-static const float CameraAcceleration = 50.0 + CameraDeceleration;
-static const float CameraAngularDeceleration = 5.0;
-static const float CameraAngularAcceleration = 2.5 + CameraAngularDeceleration;
+#define CAMERA_DECELERATION 100.0
+#define CAMERA_ANGULAR_DECELERATION 5.0
+
+static const float CameraDeceleration = CAMERA_DECELERATION;
+static const float CameraAcceleration = 50.0 + CAMERA_DECELERATION;
+static const float CameraAngularDeceleration = CAMERA_ANGULAR_DECELERATION;
+static const float CameraAngularAcceleration = 2.5 + CAMERA_ANGULAR_DECELERATION;
 static const float CameraMaxSpeed = 30.0;
 
 static

@@ -27121,8 +27121,8 @@ typedef struct sokol_global_uniforms_t {
     float t;
     float dt;
     float aspect;
-    float near;
-    float far;
+    float near_;
+    float far_;
     float fov;
     bool ortho;
 
@@ -28437,7 +28437,7 @@ SokolFx sokol_init_fog(
         .steps = {
             [0] = {
                 .inputs = { {FOG_INPUT_HDR}, {FOG_INPUT_DEPTH} },
-                .params = { 1.5}
+                .params = { 1.2}
             }
         }
     });
@@ -28517,8 +28517,8 @@ typedef struct fx_uniforms_t {
     float t;
     float dt;
     float aspect;
-    float near;
-    float far;
+    float near_;
+    float far_;
     float target_size[2];
 } fx_uniforms_t;
 
@@ -28815,8 +28815,8 @@ void fx_draw(
         .t = state->uniforms.t,
         .dt = state->uniforms.dt,
         .aspect = state->uniforms.aspect,
-        .near = state->uniforms.near,
-        .far = state->uniforms.far,
+        .near_ = state->uniforms.near_,
+        .far_ = state->uniforms.far_,
     };
 
     for (int32_t s = 0; s < step_last; s ++) {
@@ -28931,8 +28931,8 @@ typedef struct depth_vs_uniforms_t {
 
 typedef struct depth_fs_uniforms_t {
     vec3 eye_pos;
-    float near;
-    float far;
+    float near_;
+    float far_;
     float depth_c;
     float inv_log_far;
 } depth_fs_uniforms_t;
@@ -29101,10 +29101,10 @@ void sokol_run_depth_pass(
     
     depth_fs_uniforms_t fs_u;
     glm_vec3_copy(state->uniforms.eye_pos, fs_u.eye_pos);
-    fs_u.near = state->uniforms.near;
-    fs_u.far = state->uniforms.far;
+    fs_u.near_ = state->uniforms.near_;
+    fs_u.far_ = state->uniforms.far_;
     fs_u.depth_c = SOKOL_DEPTH_C;
-    fs_u.inv_log_far = 1.0 / log(SOKOL_DEPTH_C * fs_u.far + 1.0);
+    fs_u.inv_log_far = 1.0 / log(SOKOL_DEPTH_C * fs_u.far_ + 1.0);
 
     /* Render to offscreen texture so screen-space effects can be applied */
     sg_begin_pass(pass->pass, &pass->pass_action);
@@ -29820,8 +29820,8 @@ void init_global_uniforms(
     sokol_render_state_t *state)
 {
     /* Default camera parameters */
-    state->uniforms.near = SOKOL_DEFAULT_DEPTH_NEAR;
-    state->uniforms.far = SOKOL_DEFAULT_DEPTH_FAR;
+    state->uniforms.near_ = SOKOL_DEFAULT_DEPTH_NEAR;
+    state->uniforms.far_ = SOKOL_DEFAULT_DEPTH_FAR;
     state->uniforms.fov = 30;
     state->uniforms.ortho = false;
 
@@ -29833,9 +29833,9 @@ void init_global_uniforms(
             state->uniforms.fov = cam.fov;
         }
 
-        if (cam.near || cam.far) {
-            state->uniforms.near = cam.near;
-            state->uniforms.far = cam.far;
+        if (cam.near_ || cam.far_) {
+            state->uniforms.near_ = cam.near_;
+            state->uniforms.far_ = cam.far_;
         }
 
         if (cam.up[0] || !cam.up[1] || !cam.up[2]) {
@@ -29855,8 +29855,8 @@ void init_global_uniforms(
         glm_perspective(
             state->uniforms.fov, 
             state->uniforms.aspect, 
-            state->uniforms.near, 
-            state->uniforms.far, 
+            state->uniforms.near_, 
+            state->uniforms.far_, 
             state->uniforms.mat_p);
     }
     glm_mat4_inv(state->uniforms.mat_p, state->uniforms.inv_mat_p);

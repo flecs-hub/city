@@ -5,11 +5,11 @@ using flecs.city
 using flecs.game
 
 my_city = City{
-  blocks_x: 20
+  blocks_x: 30
   blocks_y: 15
   block_width: 15
   block_height: 25
-  road_width: 5
+  road_width: 6
 
   buildings: {
     min_height: 3

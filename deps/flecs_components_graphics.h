@@ -60,8 +60,8 @@ ECS_STRUCT(EcsCamera, {
     vec3 lookat;
     vec3 up;
     float fov;
-    float near;
-    float far;
+    float near_;
+    float far_;
     bool ortho;
 });
 
@@ -131,8 +131,8 @@ public:
             this->set_lookat(0, 1, 1);
             this->set_up(0, -1, 0);
             this->set_fov(30);
-            this->near = 0.1f;
-            this->far = 100;
+            this->near_ = 0.1f;
+            this->far_ = 100;
         }
 
         void set_position(float x, float y, float z) {
