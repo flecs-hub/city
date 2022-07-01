@@ -24,7 +24,7 @@ ECS_DTOR(EcsSpatialQueryResult, ptr, {
 static
 void EcsMove2(ecs_iter_t *it) {
     EcsPosition2 *p = ecs_term(it, EcsPosition2, 1);
-    EcsVelocity2 *v = ecs_term(it, EcsVelocity2, 1);
+    EcsVelocity2 *v = ecs_term(it, EcsVelocity2, 2);
 
     int i;
     for (i = 0; i < it->count; i ++) {
@@ -106,12 +106,12 @@ void FlecsSystemsPhysicsImport(
     ECS_COMPONENT_DEFINE(world, EcsSpatialQuery);
     ECS_COMPONENT_DEFINE(world, EcsSpatialQueryResult);
 
-    ecs_set_component_actions(world, EcsSpatialQuery, {
+    ecs_set_hooks(world, EcsSpatialQuery, {
         .ctor = ecs_ctor(EcsSpatialQuery),
         .dtor = ecs_dtor(EcsSpatialQuery)
     });
 
-    ecs_set_component_actions(world, EcsSpatialQueryResult, {
+    ecs_set_hooks(world, EcsSpatialQueryResult, {
         .ctor = ecs_ctor(EcsSpatialQueryResult),
         .dtor = ecs_dtor(EcsSpatialQueryResult)
     });    
@@ -145,7 +145,7 @@ struct ecs_squery_t {
 
 #define EXPR_PREFIX\
     "[in] flecs.components.transform.Position3,"\
-    "[in] ANY:flecs.components.physics.Collider FOR flecs.components.geometry.Box || ANY:flecs.components.geometry.Box,"
+    "[in] (flecs.components.physics.Collider, flecs.components.geometry.Box) || flecs.components.geometry.Box,"
 
 ecs_squery_t* ecs_squery_new(
     ecs_world_t *world,

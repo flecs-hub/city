@@ -27071,14 +27071,20 @@ SOKOL_API_IMPL sg_context_desc sapp_sgcontext(void) {
 #define SOKOL_MAX_FX_PASS (8)
 #define SOKOL_MAX_FX_PARAMS (32)
 #define SOKOL_SHADOW_MAP_SIZE (4096)
-#define SOKOL_DEFAULT_DEPTH_NEAR (1.5)
-#define SOKOL_DEFAULT_DEPTH_FAR (1500.0)
+#define SOKOL_DEFAULT_DEPTH_NEAR (2.0)
+#define SOKOL_DEFAULT_DEPTH_FAR (2500.0)
 
 #ifndef __EMSCRIPTEN__
 #define SOKOL_HIGH_DPI true
 #else
 #define SOKOL_HIGH_DPI false
 #endif
+
+typedef struct SokolQuery {
+    ecs_query_t *query;
+} SokolQuery;
+
+extern ECS_COMPONENT_DECLARE(SokolQuery);
 
 /* Immutable resources used by different components to avoid duplication */
 typedef struct sokol_resources_t {
@@ -27600,6 +27606,8 @@ void sokol_run_scene_pass(
 #endif
 
 
+ECS_COMPONENT_DECLARE(SokolQuery);
+
 /* Application wrapper */
 
 typedef struct {
@@ -27823,6 +27831,8 @@ void FlecsSystemsSokolImport(
     ECS_MODULE(world, FlecsSystemsSokol);
 
     ecs_set_name_prefix(world, "Sokol");
+
+    ECS_COMPONENT_DEFINE(world, SokolQuery);
     
     ECS_IMPORT(world, FlecsComponentsGui);
     ECS_IMPORT(world, FlecsComponentsInput);
@@ -28427,7 +28437,7 @@ SokolFx sokol_init_fog(
         .steps = {
             [0] = {
                 .inputs = { {FOG_INPUT_HDR}, {FOG_INPUT_DEPTH} },
-                .params = { 1.5 }
+                .params = { 1.5}
             }
         }
     });
@@ -29875,7 +29885,7 @@ static
 void SokolRender(ecs_iter_t *it) {
     ecs_world_t *world = it->world;
     SokolRenderer *r = ecs_term(it, SokolRenderer, 1);
-    EcsQuery *q_buffers = ecs_term(it, EcsQuery, 2);
+    SokolQuery *q_buffers = ecs_term(it, SokolQuery, 2);
     sokol_render_state_t state = {0};
     sokol_fx_resources_t *fx = r->fx;
 
@@ -29993,7 +30003,7 @@ void SokolInitRenderer(ecs_iter_t *it) {
 
     ecs_set(world, SokolRendererInst, SokolMaterials, { true });
 
-    ecs_set_pair(world, SokolRendererInst, EcsQuery, ecs_id(SokolGeometry), {
+    ecs_set_pair(world, SokolRendererInst, SokolQuery, ecs_id(SokolGeometry), {
         ecs_query_new(world, "[in] flecs.systems.sokol.Geometry")
     });
 
@@ -30030,7 +30040,7 @@ void FlecsSystemsSokolRendererImport(
     /* System that initializes renderer */
     ECS_SYSTEM(world, SokolInitRenderer, EcsOnLoad,
         flecs.components.gui.Canvas, 
-        [out] !$flecs.systems.sokol.Renderer);
+        [out] !flecs.systems.sokol.Renderer($));
 
     /* Configure no_staging for SokolInitRenderer as it needs direct access to
      * the world for creating queries */
@@ -30046,7 +30056,7 @@ void FlecsSystemsSokolRendererImport(
     /* System that orchestrates the render tasks */
     ECS_SYSTEM(world, SokolRender, EcsOnStore, 
         flecs.systems.sokol.Renderer,
-        (flecs.core.Query, Geometry));
+        (sokol.Query, Geometry));
 
     /* System that calls sg_commit */
     ECS_SYSTEM(world, SokolCommit, EcsOnStore, 0);
@@ -30057,7 +30067,7 @@ ECS_COMPONENT_DECLARE(SokolMaterialId);
 ECS_COMPONENT_DECLARE(SokolMaterials);
 
 void SokolInitMaterials(ecs_iter_t *it) {
-    const EcsQuery *q = ecs_term(it, EcsQuery, 1);
+    const SokolQuery *q = ecs_term(it, SokolQuery, 1);
     SokolMaterials *materials = ecs_term(it, SokolMaterials, 2);
 
     materials->changed = true;
@@ -30145,11 +30155,11 @@ void FlecsSystemsSokolMaterialsImport(
 
     /* System that initializes material array that's sent to vertex shader */
     ECS_SYSTEM(world, SokolInitMaterials, EcsOnLoad,
-        [in]   Query(InitMaterials, SokolMaterials),
+        [in]   sokol.Query(InitMaterials, SokolMaterials),
         [out]  SokolMaterials);
 
     /* Set material query for InitMaterials system */
-    ecs_set_pair(world, SokolInitMaterials, EcsQuery, ecs_id(SokolMaterials), {
+    ecs_set_pair(world, SokolInitMaterials, SokolQuery, ecs_id(SokolMaterials),{
         ecs_query_new(world, material_query)
     });
 
@@ -30514,7 +30524,7 @@ void FlecsSystemsSokolGeometryImport(
     ECS_COMPONENT_DEFINE(world, SokolGeometry);
     ECS_COMPONENT_DEFINE(world, SokolGeometryQuery);
 
-    ecs_set_component_actions(world, SokolGeometry, {
+    ecs_set_hooks(world, SokolGeometry, {
         .ctor = ecs_ctor(SokolGeometry),
         .dtor = ecs_dtor(SokolGeometry)
     });

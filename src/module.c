@@ -675,7 +675,7 @@ void FlecsCityImport(
     ECS_META_COMPONENT(world, CityTraffic);
     ECS_META_COMPONENT(world, City);
 
-    ecs_set_component_actions(world, City, {
+    ecs_set_hooks(world, City, {
         .on_set = SetCity
     });
 

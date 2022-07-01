@@ -12,6 +12,11 @@
                 "dl"
             ]
         },
+        "${cfg sanitize}": {
+            "defines": [
+                "FLECS_SANITIZE"
+            ]
+        },
         "libs": [
             "m"
         ],

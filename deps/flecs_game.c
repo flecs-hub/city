@@ -217,7 +217,7 @@ void FlecsGameImport(ecs_world_t *world) {
         [filter] CameraController);
 
     ECS_SYSTEM(world, CameraControllerAccelerate, EcsOnUpdate,
-        [in]     $flecs.components.input.Input,
+        [in]     flecs.components.input.Input($),
         [in]     flecs.components.transform.Rotation3,
         [inout]  flecs.components.physics.Velocity3,
         [inout]  flecs.components.physics.AngularVelocity,
