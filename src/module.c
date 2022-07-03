@@ -679,13 +679,13 @@ void FlecsCityImport(
         .on_set = SetCity
     });
 
-    ECS_SYSTEM(world, GenerateTraffic, EcsOnUpdate, 
-        [in]    flecs.components.transform.Position3,
-        [inout] CityTrafficEmitter);
+    // ECS_SYSTEM(world, GenerateTraffic, EcsOnUpdate, 
+    //     [in]    flecs.components.transform.Position3,
+    //     [inout] CityTrafficEmitter);
 
-    ECS_SYSTEM(world, ExpireTraffic, EcsOnUpdate, 
-        [in]    flecs.components.transform.Position3,
-        [in]    CityBound);
+    // ECS_SYSTEM(world, ExpireTraffic, EcsOnUpdate, 
+    //     [in]    flecs.components.transform.Position3,
+    //     [in]    CityBound);
 
     /* Load module assets */
     if (ecs_plecs_from_file(world, "etc/assets/module.plecs") == 0) {

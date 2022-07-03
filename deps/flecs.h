@@ -160,6 +160,14 @@ extern "C" {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//// OS API flags
+////////////////////////////////////////////////////////////////////////////////
+
+#define EcsOsApiHighResolutionTimer   (1u << 0)
+#define EcsOsApiLogWithColors         (1u << 1)
+
+
+////////////////////////////////////////////////////////////////////////////////
 //// Entity flags (set in upper bits of ecs_record_t::row)
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1834,7 +1842,6 @@ typedef struct ecs_os_api_t {
     ecs_os_api_sleep_t sleep_;
     ecs_os_api_now_t now_;
     ecs_os_api_get_time_t get_time_;
-    ecs_os_api_enable_high_timer_resolution_t enable_high_timer_resolution_;
 
     /* Logging */
     ecs_os_api_log_t log_; /* Logging function. The level should be interpreted as: */
@@ -1869,8 +1876,8 @@ typedef struct ecs_os_api_t {
     /* Last error code */
     int32_t log_last_error_;
 
-    /* Enable tracing with color */
-    bool log_with_color_;
+    /* OS API flags */
+    ecs_flags32_t flags_;
 } ecs_os_api_t;
 
 FLECS_API
@@ -2010,9 +2017,6 @@ void ecs_os_set_api_defaults(void);
 #define ecs_os_sleep(sec, nanosec) ecs_os_api.sleep_(sec, nanosec)
 #define ecs_os_now() ecs_os_api.now_()
 #define ecs_os_get_time(time_out) ecs_os_api.get_time_(time_out)
-
-FLECS_API
-void ecs_os_enable_high_timer_resolution(bool enable);
 
 /* Logging */
 FLECS_API
@@ -4851,15 +4855,112 @@ void* ecs_ref_get_id(
  * @param world The world.
  * @param entity The entity.
  * @param id The entity id of the component to obtain.
- * @param is_added Out parameter that returns true if the component was added.
  * @return The component pointer.
  */
 FLECS_API
 void* ecs_get_mut_id(
     ecs_world_t *world,
     ecs_entity_t entity,
-    ecs_id_t id,
-    bool *is_added); 
+    ecs_id_t id); 
+
+/** Begin exclusive write access to entity.
+ * This operation provides safe exclusive access to the components of an entity
+ * without the overhead of deferring operations.
+ * 
+ * When this operation is called simultaneously for the same entity more than
+ * once it will throw an assert. Note that for this to happen, asserts must be
+ * enabled. It is up to the application to ensure that access is exclusive, for
+ * example by using a read-write mutex.
+ * 
+ * Exclusive access is enforced at the table level, so only one entity can be
+ * exclusively accessed per table. The exclusive access check is thread safe.
+ * 
+ * This operation must be followed up with ecs_write_end.
+ * 
+ * @param world The world.
+ * @param entity The entity.
+ * @return A record to the entity.
+ */
+FLECS_API
+ecs_record_t* ecs_write_begin(
+    ecs_world_t *world,
+    ecs_entity_t entity);
+
+/** End exclusive write access to entity.
+ * This operation ends exclusive access, and must be called after 
+ * ecs_write_begin.
+ * 
+ * @param record Record to the entity.
+ */
+FLECS_API
+void ecs_write_end(
+    ecs_record_t *record);
+
+/** Begin read access to entity.
+ * This operation provides safe read access to the components of an entity.
+ * Multiple simultaneous reads are allowed per entity.
+ * 
+ * This operation ensures that code attempting to mutate the entity's table will
+ * throw an assert. Note that for this to happen, asserts must be enabled. It is
+ * up to the application to ensure that this does not happen, for example by
+ * using a read-write mutex.
+ * 
+ * This operation does *not* provide the same guarantees as a read-write mutex,
+ * as it is possible to call ecs_read_begin after calling ecs_write_begin. It is
+ * up to application has to ensure that this does not happen.
+ * 
+ * This operation must be followed up with ecs_read_end.
+ *
+ * @param world The world.
+ * @param entity The entity.
+ * @return A record to the entity.
+ */
+FLECS_API
+const ecs_record_t* ecs_read_begin(
+    ecs_world_t *world,
+    ecs_entity_t entity);
+
+/** End read access to entity.
+ * This operation ends read access, and must be called after ecs_read_begin.
+ *
+ * @param record Record to the entity.
+ */
+FLECS_API
+void ecs_read_end(
+    const ecs_record_t *record);
+
+/** Get component from entity record.
+ * This operation returns a pointer to a component for the entity 
+ * associated with the provided record. For safe access to the component, obtain
+ * the record with ecs_read_begin or ecs_write_begin.
+ * 
+ * Obtaining a component from a record is faster than obtaining it from the
+ * entity handle, as it reduces the number of lookups required.
+ * 
+ * @param world The world.
+ * @param record Record to the entity.
+ * @param id The (component) id.
+ * @return Pointer to component, or NULL if entity does not have the component.
+ */
+FLECS_API
+const void* ecs_record_get_id(
+    ecs_world_t *world,
+    const ecs_record_t *record,
+    ecs_id_t id);
+
+/** Same as ecs_record_get_id, but returns a mutable pointer.
+ * For safe access to the component, obtain the record with ecs_write_begin.
+ * 
+ * @param world The world.
+ * @param record Record to the entity.
+ * @param id The (component) id.
+ * @return Pointer to component, or NULL if entity does not have the component.
+ */
+FLECS_API
+void* ecs_record_get_mut_id(
+    ecs_world_t *world,
+    ecs_record_t *record,
+    ecs_id_t id);
 
 /** Emplace a component.
  * Emplace is similar to get_mut except that the component constructor is not
@@ -7534,7 +7635,7 @@ ecs_record_t* ecs_record_find(
 /** Get component pointer from column/record. */
 FLECS_API
 void* ecs_record_get_column(
-    ecs_record_t *r,
+    const ecs_record_t *r,
     int32_t column,
     size_t c_size);
 
@@ -7850,15 +7951,45 @@ void* ecs_record_get_column(
 #define ecs_get(world, entity, T)\
     (ECS_CAST(const T*, ecs_get_id(world, entity, ecs_id(T))))
 
-#define ecs_get_pair(world, subject, relation, object)\
-    (ECS_CAST(relation*, ecs_get_id(world, subject,\
-        ecs_pair(ecs_id(relation), object))))
+#define ecs_get_pair(world, subject, R, object)\
+    (ECS_CAST(const R*, ecs_get_id(world, subject,\
+        ecs_pair(ecs_id(R), object))))
 
-#define ecs_get_pair_second(world, subject, relation, object)\
-    (ECS_CAST(object*, ecs_get_id(world, subject,\
-        ecs_pair(relation, ecs_id(object)))))
+#define ecs_get_pair_second(world, subject, relation, O)\
+    (ECS_CAST(const O*, ecs_get_id(world, subject,\
+        ecs_pair(relation, ecs_id(O)))))
 
 #define ecs_get_pair_object ecs_get_pair_second
+
+/* -- Get from record -- */
+
+#define ecs_record_get(world, record, T)\
+    (ECS_CAST(const T*, ecs_record_get_id(world, record, ecs_id(T))))
+
+#define ecs_record_get_pair(world, record, R, object)\
+    (ECS_CAST(const T*, ecs_record_get_id(world, record, \
+        ecs_pair(ecs_id(R), object))))
+
+#define ecs_record_get_pair_second(world, record, relation, O)\
+    (ECS_CAST(const O*, ecs_record_get_id(world, record,\
+        ecs_pair(relation, ecs_id(O)))))
+
+#define ecs_record_get_pair_object ecs_record_get_pair_second
+
+/* -- Get mut from record -- */
+
+#define ecs_record_get_mut(world, record, T)\
+    (ECS_CAST(T*, ecs_record_get_mut_id(world, record, ecs_id(T))))
+
+#define ecs_record_get_mut_pair(world, record, R, object)\
+    (ECS_CAST(T*, ecs_record_get_mut_id(world, record, \
+        ecs_pair(ecs_id(R), object))))
+
+#define ecs_record_get_mut_pair_second(world, record, relation, O)\
+    (ECS_CAST(O*, ecs_record_get_mut_id(world, record,\
+        ecs_pair(relation, ecs_id(O)))))
+
+#define ecs_record_get_mut_pair_object ecs_record_get_mut_pair_second
 
 /* -- Ref -- */
 
@@ -7870,16 +8001,16 @@ void* ecs_record_get_column(
 
 /* -- Get mut & Modified -- */
 
-#define ecs_get_mut(world, entity, T, is_added)\
-    (ECS_CAST(T*, ecs_get_mut_id(world, entity, ecs_id(T), is_added)))
+#define ecs_get_mut(world, entity, T)\
+    (ECS_CAST(T*, ecs_get_mut_id(world, entity, ecs_id(T))))
 
-#define ecs_get_mut_pair(world, subject, relation, object, is_added)\
+#define ecs_get_mut_pair(world, subject, relation, object)\
     (ECS_CAST(relation*, ecs_get_mut_id(world, subject,\
-        ecs_pair(ecs_id(relation), object), is_added)))
+        ecs_pair(ecs_id(relation), object))))
 
-#define ecs_get_mut_pair_second(world, subject, relation, object, is_added)\
+#define ecs_get_mut_pair_second(world, subject, relation, object)\
     (ECS_CAST(object*, ecs_get_mut_id(world, subject,\
-        ecs_pair(relation, ecs_id(object)), is_added)))
+        ecs_pair(relation, ecs_id(object)))))
 
 #define ecs_get_mut_pair_object ecs_get_mut_pair_second
 
@@ -7905,7 +8036,7 @@ void* ecs_record_get_column(
     ecs_set(world, ecs_id(comp), comp, __VA_ARGS__)
 
 #define ecs_singleton_get_mut(world, comp)\
-    ecs_get_mut(world, ecs_id(comp), comp, NULL)
+    ecs_get_mut(world, ecs_id(comp), comp)
 
 #define ecs_singleton_modified(world, comp)\
     ecs_modified(world, ecs_id(comp), comp)
@@ -8642,7 +8773,7 @@ int ecs_log_last_error(void);
 #define ECS_MISSING_SYMBOL (29)
 #define ECS_ALREADY_IN_USE (30)
 
-#define ECS_COLUMN_ACCESS_VIOLATION (40)
+#define ECS_ACCESS_VIOLATION (40)
 #define ECS_COLUMN_INDEX_OUT_OF_RANGE (41)
 #define ECS_COLUMN_IS_NOT_SHARED (42)
 #define ECS_COLUMN_IS_SHARED (43)
@@ -15161,7 +15292,7 @@ template <typename T, if_t< is_flecs_constructible<T>::value > = 0>
 inline void set(world_t *world, entity_t entity, T&& value, ecs_id_t id) {
     ecs_assert(_::cpp_type<T>::size() != 0, ECS_INVALID_PARAMETER, NULL);
 
-    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id, NULL));
+    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id));
     dst = FLECS_MOV(value);
 
     ecs_modified_id(world, entity, id);
@@ -15172,7 +15303,7 @@ template <typename T, if_t< is_flecs_constructible<T>::value > = 0>
 inline void set(world_t *world, entity_t entity, const T& value, ecs_id_t id) {
     ecs_assert(_::cpp_type<T>::size() != 0, ECS_INVALID_PARAMETER, NULL);
 
-    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id, NULL));
+    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id));
     dst = value;
 
     ecs_modified_id(world, entity, id);
@@ -15183,11 +15314,7 @@ template <typename T, if_not_t< is_flecs_constructible<T>::value > = 0>
 inline void set(world_t *world, entity_t entity, T&& value, ecs_id_t id) {
     ecs_assert(_::cpp_type<T>::size() != 0, ECS_INVALID_PARAMETER, NULL);
 
-    bool is_new = false;
-    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id, &is_new));
-
-    /* If type is not constructible get_mut should assert on new values */
-    ecs_assert(!is_new, ECS_INTERNAL_ERROR, NULL);
+    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id));
 
     dst = FLECS_MOV(value);
 
@@ -15199,11 +15326,7 @@ template <typename T, if_not_t< is_flecs_constructible<T>::value > = 0>
 inline void set(world_t *world, id_t entity, const T& value, id_t id) {
     ecs_assert(_::cpp_type<T>::size() != 0, ECS_INVALID_PARAMETER, NULL);
 
-    bool is_new = false;
-    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id, &is_new));
-
-    /* If type is not constructible get_mut should assert on new values */
-    ecs_assert(!is_new, ECS_INTERNAL_ERROR, NULL);
+    T& dst = *static_cast<T*>(ecs_get_mut_id(world, entity, id));
     dst = value;
 
     ecs_modified_id(world, entity, id);
@@ -16761,7 +16884,7 @@ public:
 
     flecs::column<A> term(int32_t index) const {
         ecs_assert(!ecs_term_is_readonly(m_iter, index), 
-            ECS_COLUMN_ACCESS_VIOLATION, NULL);
+            ECS_ACCESS_VIOLATION, NULL);
         return get_term<A>(index);
     }
 
@@ -17241,6 +17364,26 @@ struct entity_view : public id {
      *
      * This operation is faster than individually calling get for each component
      * as it only obtains entity metadata once.
+     * 
+     * While the callback is invoked the table in which the components are
+     * stored is locked, which prevents mutations that could cause invalidation
+     * of the component references. Note that this is not an actual lock: 
+     * invalid access causes a runtime panic and so it is still up to the 
+     * application to ensure access is protected.
+     * 
+     * The component arguments must be references and can be either const or
+     * non-const. When all arguments are const, the function will read-lock the
+     * table (see ecs_read_begin). If one or more arguments are non-const the
+     * function will write-lock the table (see ecs_write_begin).
+     * 
+     * Example:
+     *   e.get([](Position& p, Velocity& v) { // write lock
+     *     p.x += v.x;
+     *   });
+     * 
+     *   e.get([](const Position& p) {        // read lock
+     *     std::cout << p.x << std::endl;
+     *   });
      *
      * @param func The callback to invoke.
      * @return True if the entity has all components, false if not.
@@ -18447,15 +18590,13 @@ struct entity : entity_builder<entity>
      * will be copied to the entity before this function returns.
      *
      * @tparam T The component to get.
-     * @param is_added If provided, this parameter will be set to true if the component was added.
      * @return Pointer to the component value.
      */
     template <typename T>
-    T* get_mut(bool *is_added = nullptr) const {
+    T* get_mut() const {
         auto comp_id = _::cpp_type<T>::id(m_world);
         ecs_assert(_::cpp_type<T>::size() != 0, ECS_INVALID_PARAMETER, NULL);
-        return static_cast<T*>(
-            ecs_get_mut_id(m_world, m_id, comp_id, is_added));
+        return static_cast<T*>(ecs_get_mut_id(m_world, m_id, comp_id));
     }
 
     /** Get mutable component value (untyped).
@@ -18465,11 +18606,10 @@ struct entity : entity_builder<entity>
      * will be copied to the entity before this function returns.
      *
      * @param comp The component to get.
-     * @param is_added If provided, this parameter will be set to true if the component was added.
      * @return Pointer to the component value.
      */
-    void* get_mut(entity_t comp, bool *is_added = nullptr) const {
-        return ecs_get_mut_id(m_world, m_id, comp, is_added);
+    void* get_mut(entity_t comp) const {
+        return ecs_get_mut_id(m_world, m_id, comp);
     }
 
     /** Get mutable pointer for a pair.
@@ -18479,9 +18619,8 @@ struct entity : entity_builder<entity>
      * @tparam Object the object type.
      */
     template <typename Relation, typename Object>
-    Relation* get_mut(bool *is_added = nullptr) const {
-        return this->get_mut<Relation>(
-            _::cpp_type<Object>::id(m_world), is_added);
+    Relation* get_mut() const {
+        return this->get_mut<Relation>(_::cpp_type<Object>::id(m_world));
     }
 
     /** Get mutable pointer for a pair.
@@ -18491,12 +18630,11 @@ struct entity : entity_builder<entity>
      * @param object the object.
      */
     template <typename Relation>
-    Relation* get_mut(entity_t object, bool *is_added = nullptr) const {
+    Relation* get_mut(entity_t object) const {
         auto comp_id = _::cpp_type<Relation>::id(m_world);
         ecs_assert(_::cpp_type<Relation>::size() != 0, ECS_INVALID_PARAMETER, NULL);
         return static_cast<Relation*>(
-            ecs_get_mut_id(m_world, m_id, 
-                ecs_pair(comp_id, object), is_added));
+            ecs_get_mut_id(m_world, m_id, ecs_pair(comp_id, object)));
     }
 
     /** Get mutable pointer for a pair (untyped).
@@ -18506,9 +18644,8 @@ struct entity : entity_builder<entity>
      * @param relation the relation.
      * @param object the object.
      */
-    void* get_mut(entity_t relation, entity_t object, bool *is_added = nullptr) const {
-        return ecs_get_mut_id(m_world, m_id, 
-                ecs_pair(relation, object), is_added);
+    void* get_mut(entity_t relation, entity_t object) const {
+        return ecs_get_mut_id(m_world, m_id, ecs_pair(relation, object));
     }
 
     /** Get mutable pointer for the object from a pair.
@@ -18518,12 +18655,11 @@ struct entity : entity_builder<entity>
      * @param relation the relation.
      */
     template <typename Object>
-    Object* get_mut_w_object(entity_t relation, bool *is_added = nullptr) const {
+    Object* get_mut_w_object(entity_t relation) const {
         auto comp_id = _::cpp_type<Object>::id(m_world);
         ecs_assert(_::cpp_type<Object>::size() != 0, ECS_INVALID_PARAMETER, NULL);
         return static_cast<Object*>(
-            ecs_get_mut_id(m_world, m_id, 
-                ecs_pair(relation, comp_id), is_added));
+            ecs_get_mut_id(m_world, m_id, ecs_pair(relation, comp_id)));
     }           
 
     /** Signal that component was modified.
@@ -19045,13 +19181,24 @@ struct entity_with_invoker_impl;
 template<typename ... Args>
 struct entity_with_invoker_impl<arg_list<Args ...>> {
     using ColumnArray = flecs::array<int32_t, sizeof...(Args)>;
-    using ConstPtrArray = flecs::array<const void*, sizeof...(Args)>;
-    using PtrArray = flecs::array<void*, sizeof...(Args)>;
+    using ArrayType = flecs::array<void*, sizeof...(Args)>;
     using DummyArray = flecs::array<int, sizeof...(Args)>;
     using IdArray = flecs::array<id_t, sizeof...(Args)>;
 
-    template <typename ArrayType>
-    static bool get_ptrs(world_t *world, ecs_record_t *r, ecs_table_t *table,
+    static bool const_args() {
+        static flecs::array<bool, sizeof...(Args)> is_const_args ({
+            flecs::is_const<flecs::remove_reference_t<Args>>::value...
+        });
+
+        for (auto is_const : is_const_args) {
+            if (!is_const) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static bool get_ptrs(world_t *world, const ecs_record_t *r, ecs_table_t *table,
         ArrayType& ptrs) 
     {
         ecs_assert(table != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -19083,21 +19230,20 @@ struct entity_with_invoker_impl<arg_list<Args ...>> {
         return true;
     }
 
-    template <typename ArrayType>
     static bool get_mut_ptrs(world_t *world, ecs_entity_t e, ArrayType& ptrs) {
         /* Get pointers w/get_mut */
         size_t i = 0;
         DummyArray dummy ({
             (ptrs[i ++] = ecs_get_mut_id(world, e, 
-                _::cpp_type<Args>().id(world), NULL), 0)...
+                _::cpp_type<Args>().id(world)), 0)...
         });
 
         return true;
     }    
 
     template <typename Func>
-    static bool invoke_get(world_t *world, entity_t id, const Func& func) {
-        ecs_record_t *r = ecs_record_find(world, id);
+    static bool invoke_read(world_t *world, entity_t e, const Func& func) {
+        const ecs_record_t *r = ecs_read_begin(world, e);
         if (!r) {
             return false;
         }
@@ -19107,18 +19253,47 @@ struct entity_with_invoker_impl<arg_list<Args ...>> {
             return false;
         }
 
-        ConstPtrArray ptrs;
-        if (!get_ptrs(world, r, table, ptrs)) {
+        ArrayType ptrs;
+        bool has_components;
+        if ((has_components = get_ptrs(world, r, table, ptrs))) {
+            invoke_callback(func, 0, ptrs);
+        }
+
+        ecs_read_end(r);
+
+        return has_components;
+    }
+
+    template <typename Func>
+    static bool invoke_write(world_t *world, entity_t e, const Func& func) {
+        ecs_record_t *r = ecs_write_begin(world, e);
+        if (!r) {
             return false;
         }
 
-        ECS_TABLE_LOCK(world, table);
+        ecs_table_t *table = r->table;
+        if (!table) {
+            return false;
+        }
 
-        invoke_callback(func, 0, ptrs);
+        ArrayType ptrs;
+        bool has_components;
+        if ((has_components = get_ptrs(world, r, table, ptrs))) {
+            invoke_callback(func, 0, ptrs);
+        }
 
-        ECS_TABLE_UNLOCK(world, table);
+        ecs_write_end(r);
 
-        return true;
+        return has_components;
+    }
+
+    template <typename Func>
+    static bool invoke_get(world_t *world, entity_t e, const Func& func) {
+        if (const_args()) {
+            return invoke_read(world, e, func);
+        } else {
+            return invoke_write(world, e, func);
+        }
     }
 
     // Utility for storing id in array in pack expansion
@@ -19138,7 +19313,7 @@ struct entity_with_invoker_impl<arg_list<Args ...>> {
     static bool invoke_get_mut(world_t *world, entity_t id, const Func& func) {
         flecs::world w(world);
 
-        PtrArray ptrs;
+        ArrayType ptrs;
         ecs_table_t *table = NULL;
 
         // When not deferred take the fast path.
@@ -19201,7 +19376,7 @@ struct entity_with_invoker_impl<arg_list<Args ...>> {
     }    
 
 private:
-    template <typename Func, typename ArrayType, typename ... TArgs, 
+    template <typename Func, typename ... TArgs, 
         if_t<sizeof...(TArgs) == sizeof...(Args)> = 0>
     static void invoke_callback(
         const Func& f, size_t, ArrayType&, TArgs&& ... comps) 
@@ -19209,7 +19384,7 @@ private:
         f(*static_cast<typename base_arg_type<Args>::type*>(comps)...);
     }
 
-    template <typename Func, typename ArrayType, typename ... TArgs, 
+    template <typename Func, typename ... TArgs, 
         if_t<sizeof...(TArgs) != sizeof...(Args)> = 0>
     static void invoke_callback(const Func& f, size_t arg, ArrayType& ptrs, 
         TArgs&& ... comps) 

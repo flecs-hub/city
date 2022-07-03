@@ -70,14 +70,14 @@ void EcsAddBoxCollider(ecs_iter_t *it) {
         for (i = 0; i < it->count; i ++) {
             ecs_entity_t pair = ecs_pair(C, B);
             EcsBox *collider = ecs_get_mut_id(
-                it->world, it->entities[i], pair, NULL);
+                it->world, it->entities[i], pair);
             ecs_os_memcpy_t(collider, &box[i], EcsBox);
         }
     } else {
         for (i = 0; i < it->count; i ++) {
             ecs_entity_t pair = ecs_pair(C, B);
             EcsBox *collider = ecs_get_mut_id(
-                it->world, it->entities[i], pair, NULL);
+                it->world, it->entities[i], pair);
             ecs_os_memcpy_t(collider, box, EcsBox);
         }
     }
