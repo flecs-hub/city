@@ -489,7 +489,7 @@ void plant_city_block(
 
 /* Generate city */
 void SetCity(ecs_iter_t *it) {
-    City *cities = ecs_term(it, City, 1);
+    City *cities = ecs_field(it, City, 1);
 
     ecs_world_t *world = it->world;
 
@@ -608,8 +608,8 @@ void SetCity(ecs_iter_t *it) {
 
 static
 void GenerateTraffic(ecs_iter_t *it) {
-    EcsPosition3 *p = ecs_term(it, EcsPosition3, 1);
-    CityTrafficEmitter *emit = ecs_term(it, CityTrafficEmitter, 2);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 1);
+    CityTrafficEmitter *emit = ecs_field(it, CityTrafficEmitter, 2);
 
     ecs_world_t *world = it->world;
 
@@ -630,8 +630,8 @@ void GenerateTraffic(ecs_iter_t *it) {
 
 static
 void ExpireTraffic(ecs_iter_t *it) {
-    EcsPosition3 *p = ecs_term(it, EcsPosition3, 1);
-    CityBound *b = ecs_term(it, CityBound, 2);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 1);
+    CityBound *b = ecs_field(it, CityBound, 2);
 
     ecs_world_t *world = it->world;
 
@@ -679,13 +679,13 @@ void FlecsCityImport(
         .on_set = SetCity
     });
 
-    // ECS_SYSTEM(world, GenerateTraffic, EcsOnUpdate, 
-    //     [in]    flecs.components.transform.Position3,
-    //     [inout] CityTrafficEmitter);
+    ECS_SYSTEM(world, GenerateTraffic, EcsOnUpdate, 
+        [in]    flecs.components.transform.Position3,
+        [inout] CityTrafficEmitter);
 
-    // ECS_SYSTEM(world, ExpireTraffic, EcsOnUpdate, 
-    //     [in]    flecs.components.transform.Position3,
-    //     [in]    CityBound);
+    ECS_SYSTEM(world, ExpireTraffic, EcsOnUpdate, 
+        [in]    flecs.components.transform.Position3,
+        [in]    CityBound);
 
     /* Load module assets */
     if (ecs_plecs_from_file(world, "etc/assets/module.plecs") == 0) {

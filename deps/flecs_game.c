@@ -41,8 +41,8 @@ void CameraControllerAddAngularVelocity(ecs_iter_t *it) {
 
 static
 void CameraControllerSyncPosition(ecs_iter_t *it) {
-    EcsCamera *camera = ecs_term(it, EcsCamera, 1);
-    EcsPosition3 *p = ecs_term(it, EcsPosition3, 2);
+    EcsCamera *camera = ecs_field(it, EcsCamera, 1);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 2);
 
     for (int i = 0; i < it->count; i ++) {
         camera[i].position[0] = p[i].x;
@@ -53,9 +53,9 @@ void CameraControllerSyncPosition(ecs_iter_t *it) {
 
 static
 void CameraControllerSyncRotation(ecs_iter_t *it) {
-    EcsCamera *camera = ecs_term(it, EcsCamera, 1);
-    EcsPosition3 *p = ecs_term(it, EcsPosition3, 2);
-    EcsRotation3 *r = ecs_term(it, EcsRotation3, 3);
+    EcsCamera *camera = ecs_field(it, EcsCamera, 1);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 2);
+    EcsRotation3 *r = ecs_field(it, EcsRotation3, 3);
 
     for (int i = 0; i < it->count; i ++) {
         camera[i].lookat[0] = p[i].x + sin(r[i].y) * cos(r[i].x);
@@ -66,10 +66,10 @@ void CameraControllerSyncRotation(ecs_iter_t *it) {
 
 static
 void CameraControllerAccelerate(ecs_iter_t *it) {
-    EcsInput *input = ecs_term(it, EcsInput, 1);
-    EcsRotation3 *r = ecs_term(it, EcsRotation3, 2);
-    EcsVelocity3 *v = ecs_term(it, EcsVelocity3, 3);
-    EcsAngularVelocity *av = ecs_term(it, EcsAngularVelocity, 4);
+    EcsInput *input = ecs_field(it, EcsInput, 1);
+    EcsRotation3 *r = ecs_field(it, EcsRotation3, 2);
+    EcsVelocity3 *v = ecs_field(it, EcsVelocity3, 3);
+    EcsAngularVelocity *av = ecs_field(it, EcsAngularVelocity, 4);
 
     for (int i = 0; i < it->count; i ++) {
         float angle = r[i].y;
@@ -137,9 +137,9 @@ void camera_controller_decel(float *v_ptr, float a, float dt) {
 
 static
 void CameraControllerDecelerate(ecs_iter_t *it) {
-    EcsVelocity3 *v = ecs_term(it, EcsVelocity3, 1);
-    EcsAngularVelocity *av = ecs_term(it, EcsAngularVelocity, 2);
-    EcsRotation3 *r = ecs_term(it, EcsRotation3, 3);
+    EcsVelocity3 *v = ecs_field(it, EcsVelocity3, 1);
+    EcsAngularVelocity *av = ecs_field(it, EcsAngularVelocity, 2);
+    EcsRotation3 *r = ecs_field(it, EcsRotation3, 3);
 
     float dt = it->delta_time;
 

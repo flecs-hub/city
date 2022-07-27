@@ -23,8 +23,8 @@ ECS_DTOR(EcsSpatialQueryResult, ptr, {
 
 static
 void EcsMove2(ecs_iter_t *it) {
-    EcsPosition2 *p = ecs_term(it, EcsPosition2, 1);
-    EcsVelocity2 *v = ecs_term(it, EcsVelocity2, 2);
+    EcsPosition2 *p = ecs_field(it, EcsPosition2, 1);
+    EcsVelocity2 *v = ecs_field(it, EcsVelocity2, 2);
 
     int i;
     for (i = 0; i < it->count; i ++) {
@@ -35,8 +35,8 @@ void EcsMove2(ecs_iter_t *it) {
 
 static
 void EcsMove3(ecs_iter_t *it) {
-    EcsPosition3 *p = ecs_term(it, EcsPosition3, 1);
-    EcsVelocity3 *v = ecs_term(it, EcsVelocity3, 2);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 1);
+    EcsVelocity3 *v = ecs_field(it, EcsVelocity3, 2);
 
     int i;
     for (i = 0; i < it->count; i ++) {
@@ -48,8 +48,8 @@ void EcsMove3(ecs_iter_t *it) {
 
 static
 void EcsRotate3(ecs_iter_t *it) {
-    EcsRotation3 *r = ecs_term(it, EcsRotation3, 1);
-    EcsAngularVelocity *a = ecs_term(it, EcsAngularVelocity, 2);
+    EcsRotation3 *r = ecs_field(it, EcsRotation3, 1);
+    EcsAngularVelocity *a = ecs_field(it, EcsAngularVelocity, 2);
 
     int i;
     for (i = 0; i < it->count; i ++) {
@@ -61,12 +61,12 @@ void EcsRotate3(ecs_iter_t *it) {
 
 static
 void EcsAddBoxCollider(ecs_iter_t *it) {
-    EcsBox *box = ecs_term(it, EcsBox, 2);
-    ecs_entity_t C = ecs_term_id(it, 1);
-    ecs_entity_t B = ecs_term_id(it, 2);
+    EcsBox *box = ecs_field(it, EcsBox, 2);
+    ecs_entity_t C = ecs_field_id(it, 1);
+    ecs_entity_t B = ecs_field_id(it, 2);
 
     int i;
-    if (ecs_term_is_owned(it, 2)) {
+    if (ecs_field_is_self(it, 2)) {
         for (i = 0; i < it->count; i ++) {
             ecs_entity_t pair = ecs_pair(C, B);
             EcsBox *collider = ecs_get_mut_id(
@@ -85,7 +85,7 @@ void EcsAddBoxCollider(ecs_iter_t *it) {
 
 static
 void EcsUpdateSpatialQuery(ecs_iter_t *it) {
-    EcsSpatialQuery *q = ecs_term(it, EcsSpatialQuery, 1);
+    EcsSpatialQuery *q = ecs_field(it, EcsSpatialQuery, 1);
 
     int i;
     for (i = 0; i < it->count; i ++) {
@@ -130,7 +130,7 @@ void FlecsSystemsPhysicsImport(
 
     ECS_SYSTEM(world, EcsAddBoxCollider, EcsPostLoad, 
         flecs.components.physics.Collider,
-        flecs.components.geometry.Box(self|super),
+        flecs.components.geometry.Box(self|up),
         !(flecs.components.physics.Collider, flecs.components.geometry.Box));
 
     ECS_SYSTEM(world, EcsUpdateSpatialQuery, EcsPreUpdate, 
@@ -193,10 +193,10 @@ void ecs_squery_update(
         const ecs_world_t *world = ecs_get_world(sq->q);
         ecs_iter_t it = ecs_query_iter(world, sq->q);
         while (ecs_query_next(&it)) {
-            EcsPosition3 *p = ecs_term(&it, EcsPosition3, 1);
-            EcsBox *b = ecs_term(&it, EcsBox, 2);
+            EcsPosition3 *p = ecs_field(&it, EcsPosition3, 1);
+            EcsBox *b = ecs_field(&it, EcsBox, 2);
 
-            if (ecs_term_is_owned(&it, 2)) {
+            if (ecs_field_is_self(&it, 2)) {
                 int i;
                 for (i = 0; i < it.count; i ++) {
                     vec3 vp, vs;

@@ -16154,7 +16154,7 @@ SOKOL_API_IMPL const void* sg_mtl_render_command_encoder(void) {
     When mouse lock is activated, the mouse pointer is hidden, the
     reported absolute mouse position (sapp_event.mouse_x/y) appears
     frozen, and the relative mouse movement in sapp_event.mouse_dx/dy
-    no longer has a direct relation to framebuffer pixels but instead
+    no longer has a direct relationship to framebuffer pixels but instead
     uses "raw mouse input" (what "raw mouse input" exactly means also
     differs by platform).
 

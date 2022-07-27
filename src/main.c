@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     ecs_plecs_from_file(world, "etc/assets/scene.plecs");
     printf("scene loaded in %fs\n", ecs_time_measure(&t));
 
-    return ecs_app_run(world, &(ecs_app_desc_t) {
+    return ecs_app_run(world, &(ecs_app_desc_t){
         .target_fps = 60, 
         .enable_rest = true,
         .enable_monitor = true

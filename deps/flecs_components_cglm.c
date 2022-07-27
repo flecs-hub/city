@@ -7,12 +7,12 @@ void FlecsComponentsCglmImport(
 {
     ECS_MODULE(world, FlecsComponentsCglm);
 
-    ecs_id(vec3) = ecs_array_init(world, &(ecs_array_desc_t) {
-        .entity = {
+    ecs_id(vec3) = ecs_array(world, {
+        .entity = ecs_entity(world, {
             .name = "vec3",
             .symbol = "vec3",
-            .entity = ecs_id(vec3)
-        },
+            .id = ecs_id(vec3)
+        }),
         .type = ecs_id(ecs_f32_t),
         .count = 3 
     });
