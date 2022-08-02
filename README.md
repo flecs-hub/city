@@ -12,7 +12,7 @@ git clone https://github.com/SanderMertens/bake
 bake/setup.sh
 ```
 
-Install bake on macOS/Linux:
+Install bake on Windows
 ```
 git clone https://github.com/SanderMertens/bake
 cd bake
