@@ -4,12 +4,20 @@ Simple procedural city generator. Standalone Flecs project with embedded graphic
 <img width="1312" alt="Screen Shot 2021-12-21 at 2 17 27 PM" src="https://user-images.githubusercontent.com/9919222/147004880-da177044-4cdb-4c1c-aec3-c691c4ebad79.png">
 
 ## How to run
-Use the following commands on macOS and Linux (working on Windows support):
+Use the following commands on macOS and Linux:
 
 Install bake:
 ```
 git clone https://github.com/SanderMertens/bake
 bake/setup.sh
+```
+
+on Windows:
+
+```
+git clone https://github.com/SanderMertens/bake
+cd bake
+setup
 ```
 
 or if you already have a bake installation:
