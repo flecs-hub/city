@@ -53,38 +53,45 @@
 
 #ifndef FLECS_LEGACY
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsPosition2, {
     float x;
     float y;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsPosition3, {
     float x;
     float y;
     float z;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsScale2, {
     float x;
     float y;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsScale3, {
     float x;
     float y;
     float z;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsRotation2, {
     float angle;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsRotation3, {
     float x;
     float y;
     float z;
 });
 
+FLECS_COMPONENTS_TRANSFORM_API
 ECS_STRUCT(EcsQuaternion, {
     float x;
     float y;

@@ -51,31 +51,37 @@
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsVelocity2, {
     float x;
     float y;
 });
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsVelocity3, {
     float x;
     float y;
     float z;
 });
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsAngularSpeed, {
     float value;
 });
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsAngularVelocity, {
     float x;
     float y;
     float z;
 });
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsBounciness, {
     float value;
 });
 
+FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsFriction, {
     float value;
 });

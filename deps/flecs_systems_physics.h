@@ -188,10 +188,12 @@ extern "C" {
 
 #ifndef __cplusplus
 
+FLECS_SYSTEMS_PHYSICS_API
 ECS_STRUCT(EcsSpatialQuery, {
     ecs_squery_t *query;
 });
 
+FLECS_SYSTEMS_PHYSICS_API
 ECS_STRUCT(EcsSpatialQueryResult, {
     ecs_vector_t *results;
 });

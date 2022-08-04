@@ -157,6 +157,7 @@ extern "C" {
 #define EcsWorldFini                  (1u << 3)
 #define EcsWorldMeasureFrameTime      (1u << 4)
 #define EcsWorldMeasureSystemTime     (1u << 5)
+#define EcsWorldMultiThreaded         (1u << 6)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +176,7 @@ extern "C" {
 
 #define EcsEntityObserved             (1u << 31)
 #define EcsEntityObservedId           (1u << 30)
-#define EcsEntityObservedObject       (1u << 29)
+#define EcsEntityObservedTarget       (1u << 29)
 #define EcsEntityObservedAcyclic      (1u << 28)
 
 
@@ -266,7 +267,7 @@ extern "C" {
 #define EcsTableHasCopy                (1u << 10u)
 #define EcsTableHasMove                (1u << 11u)
 #define EcsTableHasUnion               (1u << 12u)
-#define EcsTableHasDisabled            (1u << 13u)
+#define EcsTableHasToggle            (1u << 13u)
 #define EcsTableHasOverrides           (1u << 14u)
 
 #define EcsTableHasOnAdd               (1u << 15u) /* Same values as id flags */
@@ -278,7 +279,7 @@ extern "C" {
 
 /* Composite table flags */
 #define EcsTableHasLifecycle        (EcsTableHasCtors | EcsTableHasDtors)
-#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasDisabled)
+#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasToggle)
 #define EcsTableHasAddActions       (EcsTableHasIsA | EcsTableHasUnion | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions    (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove | EcsTableHasUnSet)
 
@@ -504,18 +505,19 @@ typedef int32_t ecs_size_t;
 #define ECS_RECORD_TO_ROW_FLAGS(v)    (ECS_CAST(uint32_t, v) & ECS_ROW_FLAGS_MASK)
 #define ECS_ROW_TO_RECORD(row, flags) (ECS_CAST(uint32_t, (ECS_CAST(uint32_t, row) | (flags))))
 
-#define ECS_ROLE_MASK                 (0xFFull << 56)
+#define ECS_ID_FLAGS_MASK             (0xFFull << 56)
 #define ECS_ENTITY_MASK               (0xFFFFFFFFull)
 #define ECS_GENERATION_MASK           (0xFFFFull << 32)
 #define ECS_GENERATION(e)             ((e & ECS_GENERATION_MASK) >> 32)
 #define ECS_GENERATION_INC(e)         ((e & ~ECS_GENERATION_MASK) | ((0xFFFF & (ECS_GENERATION(e) + 1)) << 32))
-#define ECS_COMPONENT_MASK            (~ECS_ROLE_MASK)
-#define ECS_HAS_ROLE(e, role)         ((e & ECS_ROLE_MASK) == ECS_##role)
+#define ECS_COMPONENT_MASK            (~ECS_ID_FLAGS_MASK)
+#define ECS_HAS_ID_FLAG(e, role)      ((e) & ECS_##role)
+#define ECS_IS_PAIR(id)               (((id) & ECS_ID_FLAGS_MASK) == ECS_PAIR)
 #define ECS_PAIR_FIRST(e)             (ecs_entity_t_hi(e & ECS_COMPONENT_MASK))
 #define ECS_PAIR_SECOND(e)            (ecs_entity_t_lo(e))
 #define ECS_PAIR_RELATION             ECS_PAIR_FIRST
 #define ECS_PAIR_OBJECT               ECS_PAIR_SECOND
-#define ECS_HAS_RELATION(e, rel)      (ECS_HAS_ROLE(e, PAIR) && (ECS_PAIR_FIRST(e) == rel))
+#define ECS_HAS_RELATION(e, rel)      (ECS_HAS_ID_FLAG(e, PAIR) && (ECS_PAIR_FIRST(e) == rel))
 
 #define ECS_HAS_PAIR_OBJECT(e, rel, obj)\
     (ECS_HAS_RELATION(e, rel) && ECS_PAIR_SECOND(e) == obj)
@@ -645,18 +647,6 @@ typedef int32_t ecs_size_t;
     }
 
 #endif
-
-
-////////////////////////////////////////////////////////////////////////////////
-//// Deprecated constants
-////////////////////////////////////////////////////////////////////////////////
-
-/* These constants should no longer be used, but are required by the core to
- * guarantee backwards compatibility */
-#define ECS_AND (ECS_ROLE | (0x79ull << 56))
-#define ECS_OR (ECS_ROLE | (0x78ull << 56))
-#define ECS_XOR (ECS_ROLE | (0x77ull << 56))
-#define ECS_NOT (ECS_ROLE | (0x76ull << 56))
 
 #ifdef __cplusplus
 }
@@ -1259,6 +1249,16 @@ void _ecs_map_init(
 
 #define ecs_map_init(map, T, elem_count)\
     _ecs_map_init(map, sizeof(T), elem_count)
+
+/** Initialize new map if uninitialized, leave as is otherwise */
+FLECS_API
+void _ecs_map_init_if(
+    ecs_map_t *map,
+    ecs_size_t elem_size,
+    int32_t elem_count);
+
+#define ecs_map_init_if(map, T, elem_count)\
+    _ecs_map_init_if(map, sizeof(T), elem_count)
 
 /** Deinitialize map. */
 FLECS_API
@@ -2160,7 +2160,7 @@ extern "C" {
 typedef void ecs_poly_t;
 
 /** An id. Ids are the things that can be added to an entity. An id can be an
- * entity or pair, and can have an optional role. */
+ * entity or pair, and can have optional id flags. */
 typedef uint64_t ecs_id_t;
 
 /** An entity identifier. */
@@ -2466,7 +2466,7 @@ struct ecs_term_t {
     ecs_inout_kind_t inout;     /* Access to contents matched by term */
     ecs_oper_kind_t oper;       /* Operator of term */
 
-    ecs_id_t role;              /* Role of term */
+    ecs_id_t id_flags;          /* Id flags of term id */
     char *name;                 /* Name of term */
 
     int32_t index;              /* Computed term index in filter which takes 
@@ -3799,25 +3799,35 @@ extern "C" {
 
 
 /**
- * @defgroup type_roles Type Roles
+ * @defgroup id_flags Id Flags
  * @{
  */
 
-/* Type roles are used to indicate the role of an entity in a type. If no flag
- * is specified, the entity is interpreted as a regular component or tag. Flags
- * are added to an entity by using a bitwise OR (|). */
+/* Id flags are bits that can be set on an id. Flags can store information
+ * about how an id should be interpreted (for example, as a pair) or can be used
+ * to enable features (such as OVERRIDE).
+ */
 
-/** Role bit added to roles to differentiate between roles and generations */
-#define ECS_ROLE (1ull << 63)
+/** Bit added to flags to differentiate between id flags and generation */
+#define ECS_ID_FLAG_BIT (1ull << 63)
 
-/** The PAIR role indicates that the entity is a pair identifier. */
+/** Indicates that the id is a pair. */
 FLECS_API extern const ecs_id_t ECS_PAIR;
 
-/** Enforce ownership of a component */
+/** Automatically override component when its inherited */
 FLECS_API extern const ecs_id_t ECS_OVERRIDE;
 
-/** Track whether component is enabled or not */
-FLECS_API extern const ecs_id_t ECS_DISABLED;
+/** Adds bitset to storage which allows component to be enabled/disabled */
+FLECS_API extern const ecs_id_t ECS_TOGGLE;
+
+/** Include all components from entity to which AND is applied */
+FLECS_API extern const ecs_id_t ECS_AND;
+
+/** Include at least one component from entity to which OR is applied */
+FLECS_API extern const ecs_id_t ECS_OR;
+
+/** Exclude all components from entity to which NOT is applied */
+FLECS_API extern const ecs_id_t ECS_NOT;
 
 /** @} */
 
@@ -3862,7 +3872,7 @@ FLECS_API extern const ecs_entity_t EcsWildcard;
 /* Any entity ("_"). Matches any id, returns only the first. */
 FLECS_API extern const ecs_entity_t EcsAny;
 
-/* This entity ("."). Used in expressions to indicate This variable */
+/* This entity. Default source for queries. */
 FLECS_API extern const ecs_entity_t EcsThis;
 
 /* Variable entity ("$"). Used in expressions to prefix variable names */
@@ -4388,6 +4398,25 @@ int32_t ecs_delete_empty_tables(
     int32_t min_id_count,
     double time_budget_seconds);
 
+
+/** Test if pointer is of specified type.
+ * Usage:
+ *   ecs_poly_is(ptr, ecs_world_t)
+ * 
+ * This operation only works for poly types.
+ * 
+ * @param object The object to test.
+ * @param type The id of the type.
+ * @return True if the pointer is of the specified type.
+ */
+FLECS_API
+bool _ecs_poly_is(
+    const ecs_poly_t *object,
+    int32_t type);
+
+#define ecs_poly_is(object, type)\
+    _ecs_poly_is(object, type##_magic)
+
 /** @} */
 
 /**
@@ -4424,9 +4453,8 @@ ecs_entity_t ecs_new_low_id(
     ecs_world_t *world);
 
 /** Create new entity.
- * This operation creates a new entity with a single entity in its type. The
- * entity may contain type roles. This operation recycles ids.
- *
+ * This operation creates a new entity with a (component) id.
+ * 
  * @param world The world.
  * @param id The component id to initialize the new entity with.
  * @return The new entity.
@@ -4548,10 +4576,9 @@ ecs_entity_t ecs_clone(
  * @{
  */
 
-/** Add an entity to an entity.
- * This operation adds a single entity to the type of an entity. Type roles may
- * be used in combination with the added entity. If the entity already has the
- * entity, this operation will have no side effects.
+/** Add a (component) id to an entity.
+ * This operation adds a single (component) id to an entity. If the entity 
+ * already has the id, this operation has no side effects.
  *
  * @param world The world.
  * @param entity The entity.
@@ -4563,10 +4590,9 @@ void ecs_add_id(
     ecs_entity_t entity,
     ecs_id_t id);
 
-/** Remove an entity from an entity.
- * This operation removes a single entity from the type of an entity. Type roles
- * may be used in combination with the added entity. If the entity does not have
- * the entity, this operation will have no side effects.
+/** Remove a (component) id from an entity.
+ * This operation removes a single (component) id to an entity. If the entity 
+ * does not have the id, this operation has no side effects.
  *
  * @param world The world.
  * @param entity The entity.
@@ -4600,7 +4626,7 @@ void ecs_remove_id(
  * @param enable True to enable the component, false to disable.
  */
 FLECS_API 
-void ecs_enable_component_w_id(
+void ecs_enable_id(
     ecs_world_t *world,
     ecs_entity_t entity,
     ecs_id_t id,
@@ -4617,7 +4643,7 @@ void ecs_enable_component_w_id(
  * @return True if the component is enabled, otherwise false.
  */
 FLECS_API 
-bool ecs_is_component_enabled_w_id(
+bool ecs_is_enabled_id(
     const ecs_world_t *world,
     ecs_entity_t entity,
     ecs_id_t id);
@@ -4630,7 +4656,7 @@ bool ecs_is_component_enabled_w_id(
  * @{
  */
  
-/** Make a pair identifier.
+/** Make a pair id.
  * This function is equivalent to using the ecs_pair macro, and is added for
  * convenience to make it easier for non C/C++ bindings to work with pairs.
  *
@@ -4724,7 +4750,7 @@ const void* ecs_get_id(
     ecs_entity_t entity,
     ecs_id_t id);
 
-/** Create a ref.
+/** Create a component ref.
  * A ref is a handle to an entity + component which caches a small amount of
  * data to reduce overhead of repeatedly accessing the component. Use 
  * ecs_ref_get to get the component data.
@@ -4947,9 +4973,8 @@ ecs_entity_t ecs_set_id(
 /** Test whether an entity is valid.
  * Entities that are valid can be used with API functions.
  *
- * An entity is valid if it is not 0 and if it is alive. If the provided id has
- * a role or a pair, the contents of the role or the pair will be checked for
- * validity.
+ * An entity is valid if it is not 0 and if it is alive. If the provided id is
+ * a pair, the contents of the pair will be checked for validity.
  *
  * is_valid will return true for ids that don't exist (alive or not alive). This
  * allows for using ids that have never been created by ecs_new or similar. In
@@ -5037,7 +5062,7 @@ void ecs_ensure(
     ecs_entity_t entity);
 
 /** Same as ecs_ensure, but for (component) ids.
- * An id can be an entity or pair, and can contain type flags. This operation
+ * An id can be an entity or pair, and can contain id flags. This operation
  * ensures that the entity (or entities, for a pair) are alive.
  * 
  * When this operation is successful it guarantees that the provided id can be
@@ -5251,15 +5276,15 @@ void ecs_set_alias(
     ecs_entity_t entity,
     const char *alias);
 
-/** Convert role to string.
- * This operation converts a role to a string.
+/** Convert id flag to string.
+ * This operation converts a id flag to a string.
  * 
- * @param role The role id.
- * @return The role string, or NULL if no valid role is provided.
+ * @param id_flags The id flag.
+ * @return The id flag string, or NULL if no valid id is provided.
  */
 FLECS_API
-const char* ecs_role_str(
-    ecs_id_t role);
+const char* ecs_id_flag_str(
+    ecs_id_t id_flags);
 
 /** Convert id to string.
  * This operation interprets the structure of an id and converts it to a string.
@@ -7947,11 +7972,16 @@ void* ecs_record_get_column(
 /* -- Enable / Disable component -- */
 
 #define ecs_enable_component(world, entity, T, enable)\
-    ecs_enable_component_w_id(world, entity, ecs_id(T), enable)
+    ecs_enable_id(world, entity, ecs_id(T), enable)
 
-#define ecs_is_component_enabled(world, entity, T)\
-    ecs_is_component_enabled_w_id(world, entity, ecs_id(T))
+#define ecs_is_enabled_component(world, entity, T)\
+    ecs_is_enabled_id(world, entity, ecs_id(T))
 
+#define ecs_enable_pair(world, entity, First, second, enable)\
+    ecs_enable_id(world, entity, ecs_pair(ecs_id(First), second), enable)
+
+#define ecs_is_enabled_pair(world, entity, First, second)\
+    ecs_is_enabled_id(world, entity, ecs_pair(ecs_id(First), second))
 
 /* -- Count -- */
 
@@ -9992,15 +10022,14 @@ extern "C" {
 #endif
 
 FLECS_API extern ECS_COMPONENT_DECLARE(FlecsMonitor);
-
 FLECS_API extern ECS_COMPONENT_DECLARE(EcsWorldStats);
 FLECS_API extern ECS_COMPONENT_DECLARE(EcsPipelineStats);
 
-FLECS_API extern ECS_DECLARE(EcsPeriod1s);
-FLECS_API extern ECS_DECLARE(EcsPeriod1m);
-FLECS_API extern ECS_DECLARE(EcsPeriod1h);
-FLECS_API extern ECS_DECLARE(EcsPeriod1d);
-FLECS_API extern ECS_DECLARE(EcsPeriod1w);
+FLECS_API extern ecs_entity_t EcsPeriod1s;
+FLECS_API extern ecs_entity_t EcsPeriod1m;
+FLECS_API extern ecs_entity_t EcsPeriod1h;
+FLECS_API extern ecs_entity_t EcsPeriod1d;
+FLECS_API extern ecs_entity_t EcsPeriod1w;
 
 typedef struct {
     ecs_ftime_t elapsed;
@@ -11683,18 +11712,18 @@ extern "C" {
 
 /** ECS_STRUCT(name, body) */
 #define ECS_STRUCT(name, ...)\
-    ECS_STRUCT_TYPE(name, __VA_ARGS__);\
-    ECS_META_IMPL_CALL(ECS_STRUCT_, ECS_META_IMPL, name, #__VA_ARGS__)
+    ECS_META_IMPL_CALL(ECS_STRUCT_, ECS_META_IMPL, name, #__VA_ARGS__);\
+    ECS_STRUCT_TYPE(name, __VA_ARGS__)
 
 /** ECS_ENUM(name, body) */
 #define ECS_ENUM(name, ...)\
-    ECS_ENUM_TYPE(name, __VA_ARGS__);\
-    ECS_META_IMPL_CALL(ECS_ENUM_, ECS_META_IMPL, name, #__VA_ARGS__)
+    ECS_META_IMPL_CALL(ECS_ENUM_, ECS_META_IMPL, name, #__VA_ARGS__);\
+    ECS_ENUM_TYPE(name, __VA_ARGS__)
 
 /** ECS_BITMASK(name, body) */
 #define ECS_BITMASK(name, ...)\
-    ECS_ENUM_TYPE(name, __VA_ARGS__);\
-    ECS_META_IMPL_CALL(ECS_BITMASK_, ECS_META_IMPL, name, #__VA_ARGS__)
+    ECS_META_IMPL_CALL(ECS_BITMASK_, ECS_META_IMPL, name, #__VA_ARGS__);\
+    ECS_ENUM_TYPE(name, __VA_ARGS__)
 
 /** Macro used to mark part of type for which no reflection data is created */
 #define ECS_PRIVATE
@@ -11724,17 +11753,17 @@ int ecs_meta_from_desc(
 #define ECS_STRUCT_ECS_META_IMPL ECS_STRUCT_IMPL
 
 #define ECS_STRUCT_IMPL(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
+    extern ECS_COMPONENT_DECLARE(name);\
     static const char *FLECS__##name##_desc = type_desc;\
     static ecs_type_kind_t FLECS__##name##_kind = EcsStructType;\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_STRUCT_DECLARE(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    extern ECS_COMPONENT_DECLARE(name);\
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_STRUCT_EXTERN(name, type_desc)\
-    FLECS_META_C_IMPORT extern ECS_COMPONENT_DECLARE(name)
+    extern ECS_COMPONENT_DECLARE(name)
 
 
 /* ECS_ENUM implementation */
@@ -11744,17 +11773,17 @@ int ecs_meta_from_desc(
 #define ECS_ENUM_ECS_META_IMPL ECS_ENUM_IMPL
 
 #define ECS_ENUM_IMPL(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
+    extern ECS_COMPONENT_DECLARE(name);\
     static const char *FLECS__##name##_desc = type_desc;\
     static ecs_type_kind_t FLECS__##name##_kind = EcsEnumType;\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_ENUM_DECLARE(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    extern ECS_COMPONENT_DECLARE(name);\
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_ENUM_EXTERN(name, type_desc)\
-    FLECS_META_C_IMPORT extern ECS_COMPONENT_DECLARE(name)
+    extern ECS_COMPONENT_DECLARE(name)
 
 
 /* ECS_BITMASK implementation */
@@ -11764,27 +11793,17 @@ int ecs_meta_from_desc(
 #define ECS_BITMASK_ECS_META_IMPL ECS_BITMASK_IMPL
 
 #define ECS_BITMASK_IMPL(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
+    extern ECS_COMPONENT_DECLARE(name);\
     static const char *FLECS__##name##_desc = type_desc;\
     static ecs_type_kind_t FLECS__##name##_kind = EcsBitmaskType;\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_BITMASK_DECLARE(name, type_desc)\
-    FLECS_META_C_EXPORT extern ECS_COMPONENT_DECLARE(name);\
-    FLECS_META_C_EXPORT ECS_COMPONENT_DECLARE(name) = 0
+    extern ECS_COMPONENT_DECLARE(name);\
+    ECS_COMPONENT_DECLARE(name) = 0
 
 #define ECS_BITMASK_EXTERN(name, type_desc)\
-    FLECS_META_C_IMPORT extern ECS_COMPONENT_DECLARE(name)
-
-
-/* Symbol export utility macros */
-#if defined(ECS_TARGET_WINDOWS)
-#define FLECS_META_C_EXPORT __declspec(dllexport)
-#define FLECS_META_C_IMPORT __declspec(dllimport)
-#else
-#define FLECS_META_C_EXPORT __attribute__((__visibility__("default")))
-#define FLECS_META_C_IMPORT
-#endif
+    extern ECS_COMPONENT_DECLARE(name)
 
 #ifdef __cplusplus
 }
@@ -12113,8 +12132,7 @@ extern "C" {
 typedef struct ecs_snapshot_t ecs_snapshot_t;
 
 /** Create a snapshot.
- * This operation makes a copy of all component in the world that matches the 
- * specified filter.
+ * This operation makes a copy of the current state of the world.
  *
  * @param world The world to snapshot.
  * @return The snapshot.
@@ -12861,6 +12879,11 @@ enum oper_kind_t {
     NotFrom = EcsNotFrom
 };
 
+/** Id flags */
+static const flecs::entity_t Pair = ECS_PAIR;
+static const flecs::entity_t Override = ECS_OVERRIDE;
+static const flecs::entity_t Toggle = ECS_TOGGLE;
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Builtin components and tags 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12870,13 +12893,26 @@ using Component = EcsComponent;
 using Identifier = EcsIdentifier;
 using Poly = EcsPoly;
 
+/* Builtin tags */
 static const flecs::entity_t Query = EcsQuery;
 static const flecs::entity_t Observer = EcsObserver;
-
-/* Builtin opaque components */
+static const flecs::entity_t Private = EcsPrivate;
+static const flecs::entity_t Module = EcsModule;
+static const flecs::entity_t Prefab = EcsPrefab;
+static const flecs::entity_t Disabled = EcsDisabled;
+static const flecs::entity_t Empty = EcsEmpty;
+static const flecs::entity_t Monitor = EcsMonitor;
 static const flecs::entity_t System = EcsSystem;
+static const flecs::entity_t Pipeline = ecs_id(EcsPipeline);
+static const flecs::entity_t Phase = EcsPhase;
 
-/* Builtin set constants */
+/* Builtin event tags */
+static const flecs::entity_t OnAdd = EcsOnAdd;
+static const flecs::entity_t OnRemove = EcsOnRemove;
+static const flecs::entity_t OnSet = EcsOnSet;
+static const flecs::entity_t UnSet = EcsUnSet;
+
+/* Builtin term flags */
 static const uint32_t Self = EcsSelf;
 static const uint32_t Up = EcsUp;
 static const uint32_t Down = EcsDown;
@@ -12885,26 +12921,6 @@ static const uint32_t Parent = EcsParent;
 static const uint32_t IsVariable = EcsIsVariable;
 static const uint32_t IsEntity = EcsIsEntity;
 static const uint32_t TraverseFlags = EcsTraverseFlags;
-
-/* Builtin tag ids */
-static const flecs::entity_t Private = EcsPrivate;
-static const flecs::entity_t Module = EcsModule;
-static const flecs::entity_t Prefab = EcsPrefab;
-static const flecs::entity_t Disabled = EcsDisabled;
-static const flecs::entity_t Empty = EcsEmpty;
-static const flecs::entity_t Monitor = EcsMonitor;
-static const flecs::entity_t Pipeline = ecs_id(EcsPipeline);
-static const flecs::entity_t Phase = EcsPhase;
-
-/* Event tags */
-static const flecs::entity_t OnAdd = EcsOnAdd;
-static const flecs::entity_t OnRemove = EcsOnRemove;
-static const flecs::entity_t OnSet = EcsOnSet;
-static const flecs::entity_t UnSet = EcsUnSet;
-
-/** Builtin roles */
-static const flecs::entity_t Pair = ECS_PAIR;
-static const flecs::entity_t Override = ECS_OVERRIDE;
 
 /* Builtin entity ids */
 static const flecs::entity_t Flecs = EcsFlecs;
@@ -13773,7 +13789,7 @@ struct id {
     id()
         : m_world(nullptr)
         , m_id(0) { }
-    
+
     explicit id(flecs::id_t value) 
         : m_world(nullptr)
         , m_id(value) { }
@@ -13796,7 +13812,7 @@ struct id {
 
     /** Test if id is pair (has first, second) */
     bool is_pair() const {
-        return (m_id & ECS_ROLE_MASK) == flecs::Pair;
+        return (m_id & ECS_ID_FLAGS_MASK) == flecs::Pair;
     }
 
     /* Test if id is a wildcard */
@@ -13806,20 +13822,20 @@ struct id {
 
     /* Test if id is entity */
     bool is_entity() const {
-        return !(m_id & ECS_ROLE_MASK);
+        return !(m_id & ECS_ID_FLAGS_MASK);
     }
 
     /* Return id as entity (only allowed when id is valid entity) */
     flecs::entity entity() const;
 
     /* Return id with role added */
-    flecs::entity add_role(flecs::id_t role) const;
+    flecs::entity add_flags(flecs::id_t flags) const;
 
     /* Return id with role removed */
-    flecs::entity remove_role(flecs::id_t role) const;
+    flecs::entity remove_flags(flecs::id_t flags) const;
 
     /* Return id without role */
-    flecs::entity remove_role() const;
+    flecs::entity remove_flags() const;
 
     /* Return id without role */
     flecs::entity remove_generation() const;    
@@ -13828,16 +13844,16 @@ struct id {
     flecs::entity type_id() const;
 
     /* Test if id has specified role */
-    bool has_role(flecs::id_t role) const {
-        return ((m_id & ECS_ROLE_MASK) == role);
+    bool has_flags(flecs::id_t flags) const {
+        return ((m_id & flags) == flags);
     }
 
     /* Test if id has any role */
-    bool has_role() const {
-        return (m_id & ECS_ROLE_MASK) != 0;
+    bool has_flags() const {
+        return (m_id & ECS_ID_FLAGS_MASK) != 0;
     }
 
-    flecs::entity role() const;
+    flecs::entity flags() const;
 
     /* Test if id has specified first */
     bool has_relation(flecs::id_t first) const {
@@ -13865,8 +13881,8 @@ struct id {
     }
 
     /** Convert role of id to string. */
-    flecs::string role_str() const {
-        return flecs::string_view( ecs_role_str(m_id & ECS_ROLE_MASK));
+    flecs::string flags_str() const {
+        return flecs::string_view( ecs_id_flag_str(m_id & ECS_ID_FLAGS_MASK));
     }
 
     flecs::id_t raw_id() const {
@@ -15532,6 +15548,20 @@ struct world {
         return ecs_get_stage_id(m_world);
     }
 
+    /** Test if is a stage.
+     * If this function returns false, it is guaranteed that this is a valid
+     * world object.
+     * 
+     * @return True if the world is a stage, false if not.
+     */
+    bool is_stage() const {
+        ecs_assert(
+            ecs_poly_is(m_world, ecs_world_t) || 
+            ecs_poly_is(m_world, ecs_stage_t),
+                ECS_INVALID_PARAMETER, NULL);
+        return ecs_poly_is(m_world, ecs_stage_t);
+    }
+
     /** Enable/disable automerging for world or stage.
      * When automerging is enabled, staged data will automatically be merged 
      * with the world when staging ends. This happens at the end of progress(), 
@@ -16880,7 +16910,7 @@ private:
 
 #ifndef FLECS_NDEBUG
         ecs_entity_t term_id = ecs_field_id(m_iter, index);
-        ecs_assert(term_id & ECS_PAIR ||
+        ecs_assert(ECS_HAS_ID_FLAG(term_id, PAIR) ||
             term_id == _::cpp_type<T>::id(m_iter->world), 
             ECS_COLUMN_TYPE_MISMATCH, NULL);
 #endif
@@ -17502,25 +17532,69 @@ struct entity_view : public id {
         return owns(_::cpp_type<T>::id(m_world));
     }
 
-    /** Test if component is enabled.
+    /** Check if entity owns the provided pair.
+     * An pair is owned if it is not shared from a base entity.
      *
-     * @tparam T The component to test.
-     * @return True if the component is enabled, false if it has been disabled.
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     * @return True if the entity owns the provided pair, false otherwise.
      */
-    template<typename T>
-    bool is_enabled() {
-        return ecs_is_component_enabled_w_id(
-            m_world, m_id, _::cpp_type<T>::id(m_world));
+    template <typename First, typename Second>
+    bool owns() const {
+        return owns(
+            _::cpp_type<First>::id(m_world),
+            _::cpp_type<Second>::id(m_world));
+    }
+
+    /** Test if id is enabled.
+     *
+     * @param id The id to test.
+     * @return True if enabled, false if not.
+     */
+    bool enabled(flecs::id_t id) {
+        return ecs_is_enabled_id(m_world, m_id, id);
     }
 
     /** Test if component is enabled.
      *
-     * @param e The component to test.
-     * @return True if the component is enabled, false if it has been disabled.
+     * @tparam T The component to test.
+     * @return True if enabled, false if not.
      */
-    bool is_enabled(const flecs::entity_view& e) {
-        return ecs_is_component_enabled_w_id(
-            m_world, m_id, e);
+    template<typename T>
+    bool enabled() {
+        return this->enabled(_::cpp_type<T>::id(m_world));
+    }
+
+    /** Test if pair is enabled.
+     *
+     * @param first The first element of the pair.
+     * @param second The second element of the pair.
+     * @return True if enabled, false if not.
+     */
+    bool enabled(flecs::id_t first, flecs::id_t second) {
+        return this->enabled(ecs_pair(first, second));
+    }
+
+    /** Test if pair is enabled.
+     *
+     * @tparam First The first element of the pair.
+     * @param second The second element of the pair.
+     * @return True if enabled, false if not.
+     */
+    template <typename First>
+    bool enabled(flecs::id_t second) {
+        return this->enabled(_::cpp_type<First>::id(m_world), second);
+    }
+
+    /** Test if pair is enabled.
+     *
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     * @return True if enabled, false if not.
+     */
+    template <typename First, typename Second>
+    bool enabled() {
+        return this->enabled<First>(_::cpp_type<Second>::id(m_world));
     }
 
     /** Get current delta time.
@@ -17930,48 +18004,96 @@ struct entity_builder : entity_view {
         return this->remove<First>(second);
     }  
 
-    /** Add owned flag for component (forces ownership when instantiating)
+    /** Mark id for auto-overriding.
+     * When an entity inherits from a base entity (using the IsA relationship)
+     * any ids marked for auto-overriding on the base will be overridden
+     * automatically by the entity.
      *
-     * @param entity The entity for which to add the OVERRIDE flag
+     * @param id The id to mark for overriding.
      */    
-    Self& override(entity_t entity) {
-        ecs_add_id(this->m_world, this->m_id, ECS_OVERRIDE | entity);
-        return to_base();  
+    Self& override(flecs::id_t id) {
+        return this->add(ECS_OVERRIDE | id);
     }
 
-    /** Add owned flag for component (forces ownership when instantiating)
+    /** Mark pair for auto-overriding.
+     * @see override(flecs::id_t id)
      *
-     * @tparam T The component for which to add the OVERRIDE flag
-     */    
+     * @param first The first element of the pair.
+     * @param second The second element of the pair.
+     */     
+    Self& override(flecs::entity_t first, flecs::entity_t second) {
+        return this->override(ecs_pair(first, second));
+    }
+
+    /** Mark component for auto-overriding.
+     * @see override(flecs::id_t id)
+     *
+     * @tparam T The component to mark for overriding.
+     */     
     template <typename T>
     Self& override() {
-        ecs_add_id(this->m_world, this->m_id, ECS_OVERRIDE | _::cpp_type<T>::id(this->m_world));
-        return to_base();  
+        return this->override(_::cpp_type<T>::id(this->m_world));
     }
 
-    /** Set value, add owned flag.
+    /** Mark pair for auto-overriding.
+     * @see override(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @param second The second element of the pair.
+     */     
+    template <typename First>
+    Self& override(flecs::entity_t second) {
+        return this->override(_::cpp_type<First>::id(this->m_world), second);
+    }
+
+    /** Mark pair for auto-overriding.
+     * @see override(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     */     
+    template <typename First, typename Second>
+    Self& override() {
+        return this->override<First>(_::cpp_type<Second>::id(this->m_world));
+    }
+
+    /** Set component, mark component for auto-overriding.
+     * @see override(flecs::id_t id)
      *
      * @tparam T The component to set and for which to add the OVERRIDE flag
      */    
     template <typename T>
-    Self& set_override(T&& val) {
+    Self& set_override(T val) {
         this->override<T>();
-        this->set<T>(FLECS_FWD(val));
-        return to_base();  
+        return this->set<T>(val);
     }
 
-    /** Set value, add owned flag.
+    /** Set pair, mark component for auto-overriding.
+     * @see override(flecs::id_t id)
      *
-     * @tparam T The component to set and for which to add the OVERRIDE flag
+     * @tparam First The first element of the pair.
+     * @param second The second element of the pair.
      */    
-    template <typename T>
-    Self& set_override(const T& val) {
-        this->override<T>();
-        this->set<T>(val);
-        return to_base();  
+    template <typename First>
+    Self& set_override(flecs::entity_t second, First val) {
+        this->override<First>(second);
+        return this->set<First>(second, val);
     }
 
-    /** Emplace value, add owned flag.
+    /** Set component, mark component for auto-overriding.
+     * @see override(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     */    
+    template <typename First, typename Second>
+    Self& set_override(First val) {
+        this->override<First, Second>();
+        return this->set<First, Second>(val);
+    }
+
+    /** Emplace component, mark component for auto-overriding.
+     * @see override(flecs::id_t id)
      *
      * @tparam T The component to set and for which to add the OVERRIDE flag
      */    
@@ -18031,48 +18153,110 @@ struct entity_builder : entity_view {
         return to_base();
     }
 
-    /** Enable a component.
+    /** Enable an id.
      * This sets the enabled bit for this component. If this is the first time
      * the component is enabled or disabled, the bitset is added.
+     * 
+     * @param id The id to enable.
+     * @param toggle True to enable, false to disable (default = true).
+     */   
+    Self& enable(flecs::id_t id, bool toggle = true) {
+        ecs_enable_id(this->m_world, this->m_id, id, toggle);
+        return to_base();       
+    }
+
+    /** Enable a component.
+     * @see enable(flecs::id_t id)
      *
      * @tparam T The component to enable.
      */   
     template<typename T>
     Self& enable() {
-        ecs_enable_component_w_id(this->m_world, this->m_id, _::cpp_type<T>::id(), true);
-        return to_base();
-    }  
+        return this->enable(_::cpp_type<T>::id());
+    }
+
+    /** Enable a pair.
+     * @see enable(flecs::id_t id)
+     *
+     * @param first The first element of the pair.
+     * @param second The second element of the pair.
+     */   
+    Self& enable(flecs::id_t first, flecs::id_t second) {
+        return this->enable(ecs_pair(first, second));
+    }
+
+    /** Enable a pair.
+     * @see enable(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @param second The second element of the pair.
+     */   
+    template<typename First>
+    Self& enable(flecs::id_t second) {
+        return this->enable(_::cpp_type<First>::id(), second);
+    }
+
+    /** Enable a pair.
+     * @see enable(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     */   
+    template<typename First, typename Second>
+    Self& enable() {
+        return this->enable<First>(_::cpp_type<Second>::id());
+    }
+
+    /** Disable an id.
+     * This sets the enabled bit for this id. If this is the first time
+     * the id is enabled or disabled, the bitset is added.
+     *
+     * @param id The id to disable.
+     */   
+    Self& disable(flecs::id_t id) {
+        return this->enable(id, false);
+    }
 
     /** Disable a component.
-     * This sets the enabled bit for this component. If this is the first time
-     * the component is enabled or disabled, the bitset is added.
+     * @see disable(flecs::id_t id)
      *
      * @tparam T The component to enable.
      */   
     template<typename T>
     Self& disable() {
-        ecs_enable_component_w_id(this->m_world, this->m_id, _::cpp_type<T>::id(), false);
-        return to_base();
-    }  
-
-    /** Enable a component.
-     * See enable<T>.
-     *
-     * @param comp The component to enable.
-     */   
-    Self& enable(entity_t comp) {
-        ecs_enable_component_w_id(this->m_world, this->m_id, comp, true);
-        return to_base();       
+        return this->disable(_::cpp_type<T>::id());
     }
 
-    /** Disable a component.
-     * See disable<T>.
+    /** Disable a pair.
+     * @see disable(flecs::id_t id)
      *
-     * @param comp The component to disable.
+     * @param first The first element of the pair.
+     * @param second The second element of the pair.
      */   
-    Self& disable(entity_t comp) {
-        ecs_enable_component_w_id(this->m_world, this->m_id, comp, false);
-        return to_base();       
+    Self& disable(flecs::id_t first, flecs::id_t second) {
+        return this->disable(ecs_pair(first, second));
+    }
+
+    /** Disable a pair.
+     * @see disable(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @param second The second element of the pair.
+     */   
+    template<typename First>
+    Self& disable(flecs::id_t second) {
+        return this->disable(_::cpp_type<First>::id(), second);
+    }
+
+    /** Disable a pair.
+     * @see disable(flecs::id_t id)
+     *
+     * @tparam First The first element of the pair.
+     * @tparam Second The second element of the pair.
+     */   
+    template<typename First, typename Second>
+    Self& disable() {
+        return this->disable<First>(_::cpp_type<Second>::id());
     }
 
     Self& set_ptr(entity_t comp, size_t size, const void *ptr) {
@@ -19212,6 +19396,11 @@ struct entity_with_invoker_impl<arg_list<Args ...>> {
             // Bit of low level code so we only do at most one table move & one
             // entity lookup for the entire operation.
 
+            // Make sure the object is not a stage. Operations on a stage are
+            // only allowed when the stage is in deferred mode, which is when
+            // the world is in readonly mode.
+            ecs_assert(!w.is_stage(), ECS_INVALID_PARAMETER, NULL);
+
             // Find table for entity
             ecs_record_t *r = ecs_record_find(world, id);
             if (r) {
@@ -20284,12 +20473,12 @@ namespace flecs {
 
 inline flecs::entity id::entity() const {
     ecs_assert(!is_pair(), ECS_INVALID_OPERATION, NULL);
-    ecs_assert(!role(), ECS_INVALID_OPERATION, NULL);
+    ecs_assert(!flags(), ECS_INVALID_OPERATION, NULL);
     return flecs::entity(m_world, m_id);
 }
 
-inline flecs::entity id::role() const {
-    return flecs::entity(m_world, m_id & ECS_ROLE_MASK);
+inline flecs::entity id::flags() const {
+    return flecs::entity(m_world, m_id & ECS_ID_FLAGS_MASK);
 }
 
 inline flecs::entity id::first() const {
@@ -20312,17 +20501,17 @@ inline flecs::entity id::second() const {
     }
 }
 
-inline flecs::entity id::add_role(flecs::id_t role) const {
-    return flecs::entity(m_world, m_id | role);
+inline flecs::entity id::add_flags(flecs::id_t flags) const {
+    return flecs::entity(m_world, m_id | flags);
 }
 
-inline flecs::entity id::remove_role(flecs::id_t role) const {
-    (void)role;
-    ecs_assert((m_id & ECS_ROLE_MASK) == role, ECS_INVALID_PARAMETER, NULL);
+inline flecs::entity id::remove_flags(flecs::id_t flags) const {
+    (void)flags;
+    ecs_assert((m_id & ECS_ID_FLAGS_MASK) == flags, ECS_INVALID_PARAMETER, NULL);
     return flecs::entity(m_world, m_id & ECS_COMPONENT_MASK);
 }
 
-inline flecs::entity id::remove_role() const {
+inline flecs::entity id::remove_flags() const {
     return flecs::entity(m_world, m_id & ECS_COMPONENT_MASK);
 }
 
@@ -20913,7 +21102,7 @@ struct term_builder_i : term_id_builder_i<Base> {
     /** Set role of term. */
     Base& role(id_t role) {
         this->assert_term();
-        m_term->role = role;
+        m_term->id_flags = role;
         return *this;
     }
 
@@ -21090,7 +21279,7 @@ struct term final : term_builder_i<term> {
         : term_builder_i<term>(&value)
         , value({})
         , m_world(world_ptr) {
-            if (id & ECS_ROLE_MASK) {
+            if (id & ECS_ID_FLAGS_MASK) {
                 value.id = id;
             } else {
                 value.first.id = id;
@@ -21112,7 +21301,7 @@ struct term final : term_builder_i<term> {
         : term_builder_i<term>(&value)
         , value({})
         , m_world(nullptr) { 
-            if (id & ECS_ROLE_MASK) {
+            if (id & ECS_ID_FLAGS_MASK) {
                 value.id = id;
             } else {
                 value.first.id = id;
@@ -23411,7 +23600,7 @@ inline flecs::entity iter::id(int32_t index) const {
 
 inline flecs::id iter::pair(int32_t index) const {
     flecs::id_t id = ecs_field_id(m_iter, index);
-    ecs_check(ECS_HAS_ROLE(id, PAIR), ECS_INVALID_PARAMETER, NULL);
+    ecs_check(ECS_HAS_ID_FLAG(id, PAIR), ECS_INVALID_PARAMETER, NULL);
     return flecs::id(m_iter->world, id);
 error:
     return flecs::id();

@@ -53,6 +53,7 @@
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
 
+FLECS_COMPONENTS_GUI_API
 ECS_STRUCT(EcsCanvas, {
     char *title;
     int32_t width;

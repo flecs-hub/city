@@ -51,16 +51,19 @@
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsLine2, {
     vec3 start;
     vec3 stop;
 });
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsLine3, {
     vec3 start;
     vec3 stop;
 });
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsRectangle, {
     float width;
     float height;
@@ -68,14 +71,17 @@ ECS_STRUCT(EcsRectangle, {
 
 typedef EcsRectangle ecs_rect_t;
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsSquare, {
     float size;
 });
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsCircle, {
     float radius;
 });
 
+FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsBox, {
     float width;
     float height;

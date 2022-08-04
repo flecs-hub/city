@@ -52,17 +52,20 @@
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
 
+FLECS_COMPONENTS_INPUT_API
 ECS_STRUCT(ecs_key_state_t, {
     bool pressed;
     bool state;
     bool current;
 });
 
+FLECS_COMPONENTS_INPUT_API
 ECS_STRUCT(ecs_mouse_coord_t, {
     float x;
     float y;
 });
 
+FLECS_COMPONENTS_INPUT_API
 ECS_STRUCT( ecs_mouse_state_t, {
     ecs_key_state_t left;
     ecs_key_state_t right;
@@ -72,6 +75,7 @@ ECS_STRUCT( ecs_mouse_state_t, {
     ecs_mouse_coord_t scroll;
 });
 
+FLECS_COMPONENTS_INPUT_API
 ECS_STRUCT(EcsInput, {
     ecs_key_state_t keys[128];
     ecs_mouse_state_t mouse;
