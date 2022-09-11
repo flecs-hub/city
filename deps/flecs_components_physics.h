@@ -28,11 +28,11 @@
 
 /* Convenience macro for exporting symbols */
 #ifndef flecs_components_physics_STATIC
-#if flecs_components_physics_EXPORTS && (defined(_MSC_VER) || defined(__MINGW32__))
+#if defined(flecs_components_physics_EXPORTS) && (defined(_MSC_VER) || defined(__MINGW32__))
   #define FLECS_COMPONENTS_PHYSICS_API __declspec(dllexport)
-#elif flecs_components_physics_EXPORTS
+#elif defined(flecs_components_physics_EXPORTS)
   #define FLECS_COMPONENTS_PHYSICS_API __attribute__((__visibility__("default")))
-#elif defined _MSC_VER
+#elif defined(_MSC_VER)
   #define FLECS_COMPONENTS_PHYSICS_API __declspec(dllimport)
 #else
   #define FLECS_COMPONENTS_PHYSICS_API
@@ -50,6 +50,12 @@
 #ifndef FLECS_COMPONENTS_PHYSICS_IMPL
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
+
+FLECS_COMPONENTS_PHYSICS_API
+extern ECS_DECLARE(EcsCollider);
+
+FLECS_COMPONENTS_PHYSICS_API
+extern ECS_DECLARE(EcsRigidBody);
 
 FLECS_COMPONENTS_PHYSICS_API
 ECS_STRUCT(EcsVelocity2, {
@@ -99,11 +105,12 @@ void FlecsComponentsPhysicsImport(
 #endif
 
 #ifdef __cplusplus
+#ifndef FLECS_NO_CPP
 
 namespace flecs {
 namespace components {
 
-class physics : FlecsComponentsPhysics {
+class physics {
 public:
     using Velocity2 = EcsVelocity2;
     using Velocity3 = EcsVelocity3;
@@ -113,22 +120,24 @@ public:
     using Friction = EcsFriction;
 
     physics(flecs::world& ecs) {
+        // Load module contents
         FlecsComponentsPhysicsImport(ecs);
 
+        // Bind C++ types with module contents
         ecs.module<flecs::components::physics>();
-
-        ecs.pod_component<Velocity2>("flecs::components::physics::Velocity2");
-        ecs.pod_component<Velocity3>("flecs::components::physics::Velocity3");
-        ecs.pod_component<AngularSpeed>("flecs::components::physics::AngularSpeed");
-        ecs.pod_component<AngularVelocity>("flecs::components::physics::AngularVelocity");
-        ecs.pod_component<Bounciness>("flecs::components::physics::Bounciness");
-        ecs.pod_component<Friction>("flecs::components::physics::Friction");
+        ecs.component<Velocity2>();
+        ecs.component<Velocity3>();
+        ecs.component<AngularSpeed>();
+        ecs.component<AngularVelocity>();
+        ecs.component<Bounciness>();
+        ecs.component<Friction>();
     }
 };
 
 }
 }
 
+#endif
 #endif
 
 #endif

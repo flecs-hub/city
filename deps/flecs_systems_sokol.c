@@ -27401,6 +27401,13 @@ SokolFx sokol_init_ssao(
 sokol_fx_resources_t* sokol_init_fx(
     int width, int height);
 
+void sokol_fog_set_params(
+    SokolFx *fx,
+    float r,
+    float g,
+    float b,
+    float density);
+
 #endif
 
 
@@ -27585,16 +27592,9 @@ void sokol_init_geometry(
     ecs_world_t *world,
     sokol_resources_t *resources);
 
-/* Module implementation */
-
-typedef struct FlecsSystemsSokolGeometry {
-    int dummy;
-} FlecsSystemsSokolGeometry;
-
+/* Module import function */
 void FlecsSystemsSokolGeometryImport(
     ecs_world_t *world);
-
-#define FlecsSystemsSokolGeometryImportHandles(handles)
 
 #endif
 
@@ -28408,9 +28408,8 @@ const char *shd_fog =
     "#define LOG2 1.442695\n"
     "vec4 c = texture(hdr, uv);\n"
     "float d = (rgba_to_depth(texture(depth, uv)) / u_far);\n"
-    "vec4 fog_color = vec4(0.3, 0.6, 0.9, 1.0);\n"
+    "vec4 fog_color = vec4(u_r, u_g, u_b, 1.0);\n"
     "float intensity = 1.0 - exp2(-(d * d) * u_density * u_density * LOG2);\n"
-    "intensity *= 1.1;\n"
     "frag_color = mix(c, fog_color, intensity);\n"
     ;
 
@@ -28433,16 +28432,30 @@ SokolFx sokol_init_fog(
         .color_format = SG_PIXELFORMAT_RGBA16F,
         .mipmap_count = 2,
         .inputs = { "hdr", "depth" },
-        .params = { "u_density" },
+        .params = { "u_density", "u_r", "u_g", "u_b" },
         .steps = {
             [0] = {
                 .inputs = { {FOG_INPUT_HDR}, {FOG_INPUT_DEPTH} },
-                .params = { 1.2}
+                .params = { 1.2, 0.0, 0.0, 0.0 }
             }
         }
     });
 
     return fx;
+}
+
+void sokol_fog_set_params(
+    SokolFx *fx,
+    float density,
+    float r,
+    float g,
+    float b)
+{
+    float *params = fx->pass[0].steps[0].params;
+    params[0] = density;
+    params[1] = r;
+    params[2] = g;
+    params[3] = b;
 }
 
 
@@ -29944,6 +29957,9 @@ void SokolRender(ecs_iter_t *it) {
             &state, 0);
 
     /* Fog */
+    const EcsRgb *bg_color = &canvas->background_color;
+    sokol_fog_set_params(&fx->fog, canvas->fog_density, 
+        bg_color->r, bg_color->g, bg_color->b);
     sg_image scene_with_fog = sokol_fx_run(&fx->fog, 2, (sg_image[]){ 
         ssao, r->depth_pass.color_target },
             &state, 0);
@@ -29952,7 +29968,7 @@ void SokolRender(ecs_iter_t *it) {
     sokol_fx_run(&fx->hdr, 1, (sg_image[]){ scene_with_fog },
         &state, &r->screen_pass);
 
-    // sokol_run_screen_pass(&r->screen_pass, &r->resources, &state, ssao);
+    // sokol_run_screen_pass(&r->screen_pass, &r->resources, &state, hdr);
 }
 
 static
@@ -29984,7 +30000,6 @@ void SokolInitRenderer(ecs_iter_t *it) {
     ecs_trace("sokol: library initialized");
 
     sokol_resources_t resources = init_resources();
-
     sokol_offscreen_pass_t depth_pass;
     sokol_offscreen_pass_t scene_pass = sokol_init_scene_pass(
         canvas->background_color, w, h, 1, &depth_pass);

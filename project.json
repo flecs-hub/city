@@ -4,14 +4,14 @@
     "value": {
         "use": [
             "flecs",
-            "flecs.game",
             "flecs.components.transform",
+            "flecs.components.graphics",
+            "flecs.components.geometry",
             "flecs.components.physics",
             "flecs.components.gui",
-            "flecs.components.geometry",
-            "flecs.components.graphics",
             "flecs.systems.physics",
-            "flecs.systems.sokol"
+            "flecs.systems.sokol",
+            "flecs.game"
         ],
         "standalone": true
     }

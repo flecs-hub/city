@@ -32,11 +32,11 @@
 
 /* Convenience macro for exporting symbols */
 #ifndef flecs_systems_physics_STATIC
-#if flecs_systems_physics_EXPORTS && (defined(_MSC_VER) || defined(__MINGW32__))
+#if defined(flecs_systems_physics_EXPORTS) && (defined(_MSC_VER) || defined(__MINGW32__))
   #define FLECS_SYSTEMS_PHYSICS_API __declspec(dllexport)
-#elif flecs_systems_physics_EXPORTS
+#elif defined(flecs_systems_physics_EXPORTS)
   #define FLECS_SYSTEMS_PHYSICS_API __attribute__((__visibility__("default")))
-#elif defined _MSC_VER
+#elif defined(_MSC_VER)
   #define FLECS_SYSTEMS_PHYSICS_API __declspec(dllimport)
 #else
   #define FLECS_SYSTEMS_PHYSICS_API
@@ -59,7 +59,7 @@ extern "C" {
 typedef struct ecs_octree_t ecs_octree_t;
 
 typedef struct ecs_oct_entity_t {
-    ecs_entity_t e;
+    ecs_entity_t id;
     vec3 pos;
     vec3 size;
 } ecs_oct_entity_t;
@@ -114,7 +114,7 @@ typedef struct ecs_squery_t ecs_squery_t;
 FLECS_SYSTEMS_PHYSICS_API
 ecs_squery_t* ecs_squery_new(
     ecs_world_t *world,
-    const char *expr,
+    ecs_id_t filter,
     vec3 center,
     float size);
 
@@ -136,41 +136,6 @@ void ecs_squery_findn(
 #ifdef __cplusplus
 }
 #endif
-
-#ifdef __cplusplus
-
-namespace flecs {
-
-class squery {
-public:
-    using entity = ecs_oct_entity_t;
-
-    squery() {
-        sq_ = nullptr;
-    }
-
-    squery(flecs::world& world, const char *expr, vec3 center, float size) {
-        sq_ = ecs_squery_new(world.c_ptr(), expr, center, size);
-    }
-
-    void update() {
-        ecs_squery_update(sq_);
-    }
-
-    void findn(vec3 pos, float range, flecs::vector<squery::entity>& results) const {
-        ecs_vector_t *v = results.ptr();
-        ecs_squery_findn(sq_, pos, range, &v);
-        results.ptr(v);
-    }
-
-private:
-    ecs_squery_t *sq_;
-};
-
-}
-
-#endif
-
 #endif
 
 
@@ -186,10 +151,10 @@ private:
 extern "C" {
 #endif
 
-#ifndef __cplusplus
-
 FLECS_SYSTEMS_PHYSICS_API
 ECS_STRUCT(EcsSpatialQuery, {
+    vec3 center;
+    float size;
     ecs_squery_t *query;
 });
 
@@ -197,18 +162,6 @@ FLECS_SYSTEMS_PHYSICS_API
 ECS_STRUCT(EcsSpatialQueryResult, {
     ecs_vector_t *results;
 });
-
-#else
-
-typedef struct EcsSpatialQuery {
-    flecs::squery query;
-} EcsSpatialQuery;
-
-typedef struct EcsSpatialQueryResult {
-    flecs::vector<flecs::squery::entity> results;
-} EcsSpatialQueryResult;
-
-#endif
 
 FLECS_SYSTEMS_PHYSICS_API
 void FlecsSystemsPhysicsImport(
@@ -219,28 +172,72 @@ void FlecsSystemsPhysicsImport(
 #endif
 
 #ifdef __cplusplus
+#ifndef FLECS_NO_CPP
 
 namespace flecs {
 namespace systems {
 
-class physics : FlecsSystemsPhysics {
+class physics {
 public:
-    using SpatialQuery = EcsSpatialQuery;
-    using SpatialQueryResult = EcsSpatialQueryResult;
+    using oct_entity_t = ecs_oct_entity_t;
+
+    struct SpatialQuery : EcsSpatialQuery {
+        SpatialQuery() {
+            ecs_os_zeromem(center);
+            size = 0;
+            query = nullptr;
+        }
+
+        SpatialQuery(ecs_squery_t *q) {
+            query = q;
+        }
+
+        SpatialQuery(vec3 c, float s, ecs_squery_t *q = nullptr) {
+            ecs_os_memcpy_t(center, c, vec3);
+            size = s;
+            query = q;
+        }
+
+        void update() {
+            ecs_squery_update(query);
+        }
+
+        void findn(vec3 pos, float range, EcsSpatialQueryResult& qr) const {
+            ecs_squery_findn(query, pos, range, &qr.results);
+        }
+    };
+
+    struct SpatialQueryResult : EcsSpatialQueryResult {
+        using iterator = flecs::vector_iterator<oct_entity_t>;
+        
+        iterator begin() {
+            return iterator(static_cast<oct_entity_t*>(_ecs_vector_first(
+                results, ECS_VECTOR_T(oct_entity_t))), 
+                    0);
+        }
+
+        iterator end() {
+            return iterator(static_cast<oct_entity_t*>(_ecs_vector_last(
+                    results, ECS_VECTOR_T(oct_entity_t))),
+                        ecs_vector_count(results));
+        }
+    };
 
     physics(flecs::world& ecs) {
-        FlecsSystemsPhysicsImport(ecs.c_ptr());
+        // Load module contents
+        FlecsSystemsPhysicsImport(ecs);
 
+        // Bind C++ types with module contents
         ecs.module<flecs::systems::physics>();
-
-        ecs.component<SpatialQuery>("flecs::systems::physics::SpatialQuery");
-        ecs.component<SpatialQueryResult>("flecs::systems::physics::SpatialQueryResult");
+        ecs.component<SpatialQuery>();
+        ecs.component<SpatialQueryResult>();
     }
 };
 
 }
 }
 
+#endif
 #endif
 
 #endif

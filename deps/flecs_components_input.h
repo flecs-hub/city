@@ -29,11 +29,11 @@
 
 /* Convenience macro for exporting symbols */
 #ifndef flecs_components_input_STATIC
-#if flecs_components_input_EXPORTS && (defined(_MSC_VER) || defined(__MINGW32__))
+#if defined(flecs_components_input_EXPORTS) && (defined(_MSC_VER) || defined(__MINGW32__))
   #define FLECS_COMPONENTS_INPUT_API __declspec(dllexport)
-#elif flecs_components_input_EXPORTS
+#elif defined(flecs_components_input_EXPORTS)
   #define FLECS_COMPONENTS_INPUT_API __attribute__((__visibility__("default")))
-#elif defined _MSC_VER
+#elif defined(_MSC_VER)
   #define FLECS_COMPONENTS_INPUT_API __declspec(dllimport)
 #else
   #define FLECS_COMPONENTS_INPUT_API
@@ -191,16 +191,17 @@ void FlecsComponentsInputImport(
 namespace flecs {
 namespace components {
 
-class input : FlecsComponentsInput {
+class input {
 public:
     using Input = EcsInput;
 
     input(flecs::world& ecs) {
+        // Load module contents
         FlecsComponentsInputImport(ecs);
 
+        // Bind C++ types with module contents
         ecs.module<flecs::components::input>();
-
-        ecs.pod_component<Input>("flecs::components::input::Input");
+        ecs.component<Input>();
     }
 };
 

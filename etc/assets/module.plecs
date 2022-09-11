@@ -250,7 +250,6 @@ with Prefab {
 
     FrontLight_L : FrontLight { Position3 = {x: -0.35, y: -0.5, z: 1.5} }
     FrontLight_R : FrontLight { Position3 = {x: 0.35, y: -0.5, z: 1.5} }
-
     BackLight_L : BackLight { Position3 = {x: -0.35, y: -0.5, z: -1.5} }
     BackLight_R : BackLight { Position3 = {x: 0.35, y: -0.5, z: -1.5} }
   }

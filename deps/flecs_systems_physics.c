@@ -84,11 +84,33 @@ void EcsAddBoxCollider(ecs_iter_t *it) {
 }
 
 static
+void EcsOnSetSpatialQuery(ecs_iter_t *it) {
+    EcsSpatialQuery *q = ecs_field(it, EcsSpatialQuery, 1);
+    ecs_id_t id = ecs_field_id(it, 1);
+    ecs_id_t filter = ecs_pair_second(it->world, id);
+
+    for (int i = 0; i < it->count; i ++) {
+        q[i].query = ecs_squery_new(it->world, filter, q[i].center, q[i].size);
+        if (!q[i].query) {
+            char *filter_str = ecs_id_str(it->world, filter);
+            ecs_err("failed to create query for filter '%s'", filter_str);
+            ecs_os_free(filter_str);
+        }
+    }
+}
+
+static
 void EcsUpdateSpatialQuery(ecs_iter_t *it) {
     EcsSpatialQuery *q = ecs_field(it, EcsSpatialQuery, 1);
 
     int i;
     for (i = 0; i < it->count; i ++) {
+        if (!q->query) {
+            char *filter_str = ecs_id_str(it->world, ecs_field_id(it, 1));
+            ecs_err("missing spatial query for '%s'", filter_str);
+            ecs_os_free(filter_str);
+        }
+
         ecs_squery_update(q->query);
     }
 }
@@ -133,8 +155,15 @@ void FlecsSystemsPhysicsImport(
         flecs.components.geometry.Box(self|up),
         !(flecs.components.physics.Collider, flecs.components.geometry.Box));
 
+    ECS_OBSERVER(world, EcsOnSetSpatialQuery, EcsOnSet,
+        SpatialQuery(self, *), ?Prefab);
+
     ECS_SYSTEM(world, EcsUpdateSpatialQuery, EcsPreUpdate, 
-        (SpatialQuery, *), ?Prefab);
+        SpatialQuery(self, *), ?Prefab);
+
+    ecs_system(world, { .entity = EcsMove2, .query.filter.instanced = true });
+    ecs_system(world, { .entity = EcsMove3, .query.filter.instanced = true });
+    ecs_system(world, { .entity = EcsRotate3, .query.filter.instanced = true });
 }
 
 
@@ -149,21 +178,25 @@ struct ecs_squery_t {
 
 ecs_squery_t* ecs_squery_new(
     ecs_world_t *world,
-    const char *expr,
+    ecs_id_t filter,
     vec3 center,
     float size)
 {
     ecs_assert(world != NULL, ECS_INVALID_PARAMETER, NULL);
-    ecs_assert(expr != NULL, ECS_INVALID_PARAMETER, NULL);
     ecs_assert(size > 0, ECS_INVALID_PARAMETER, NULL);
 
     ecs_squery_t *result = ecs_os_calloc(sizeof(ecs_squery_t));
 
-    /* Prepend position to query so we have fast access to entity position when
-     * updating the octree */
-    char *full_expr = ecs_os_malloc(strlen(expr) + strlen(EXPR_PREFIX) + 1);
-    sprintf(full_expr, EXPR_PREFIX "%s", expr);
-    result->q = ecs_query_new(world, full_expr);
+    result->q = ecs_query(world, {
+        .filter.terms = {
+            { ecs_id(EcsPosition3), .inout = EcsIn },
+            { ecs_pair(EcsCollider, ecs_id(EcsBox)), .inout = EcsIn, .oper = EcsOr }, 
+                { ecs_id(EcsBox), .oper = EcsOr },
+            { filter, .inout = EcsIn }
+        },
+        .filter.instanced = true
+    });
+
     result->ot = ecs_octree_new(center, size);
 
     ecs_assert(result->q != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -639,7 +672,7 @@ int32_t ecs_octree_insert(
     ecs_assert(ot != NULL, ECS_INVALID_PARAMETER, NULL);
 
     ecs_oct_entity_t ce;
-    ce.e = e;
+    ce.id = e;
     glm_vec3_copy(e_pos, ce.pos);
     glm_vec3_copy(e_size, ce.size);
     cube_t *cube = cube_insert(ot, &ce, &ot->root, ot->center, ot->size);

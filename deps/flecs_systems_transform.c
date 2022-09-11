@@ -84,9 +84,9 @@ void FlecsSystemsTransformImport(
         [filter] flecs.components.transform.Scale3(self|up));
 
     ECS_SYSTEM(world, EcsApplyTransform3, EcsOnValidate, 
-        [out] flecs.components.transform.Transform3,
+        [inout] flecs.components.transform.Transform3,
         [in] ?flecs.components.transform.Transform3(parent|cascade),
-        [in] flecs.components.transform.Position3(self|up),
+        [in] flecs.components.transform.Position3,
         [in] ?flecs.components.transform.Rotation3,
         [in] ?flecs.components.transform.Scale3);
 

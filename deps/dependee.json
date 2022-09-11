@@ -17,9 +17,6 @@
                 "FLECS_SANITIZE"
             ]
         },
-        "libs": [
-            "m"
-        ],
         "${os windows}": {
             "defines": [
                 "_WINDOWS",
@@ -44,6 +41,9 @@
                     "-s GL_DEBUG=1"
                 ]
             }
-        }
+        },
+        "libs": [
+            "m"
+        ]
     }
 }
