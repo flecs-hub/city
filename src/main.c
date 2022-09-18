@@ -13,10 +13,10 @@ int main(int argc, char *argv[]) {
     ECS_IMPORT(world, FlecsComponentsGraphics);
     ECS_IMPORT(world, FlecsSystemsSokol);
 
-    ecs_plecs_from_file(world, "etc/assets/app.plecs");
+    ecs_plecs_from_file(world, "etc/assets/app.flecs");
 
     ecs_time_t t = {0}; ecs_time_measure(&t);
-    ecs_plecs_from_file(world, "etc/assets/scene.plecs");
+    ecs_plecs_from_file(world, "etc/assets/scene.flecs");
     printf("scene loaded in %fs\n", ecs_time_measure(&t));
 
     return ecs_app_run(world, &(ecs_app_desc_t){

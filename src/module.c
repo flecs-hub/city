@@ -688,7 +688,7 @@ void FlecsCityImport(
         [in]    CityBound);
 
     /* Load module assets */
-    if (ecs_plecs_from_file(world, "etc/assets/module.plecs") == 0) {
+    if (ecs_plecs_from_file(world, "etc/assets/city.flecs") == 0) {
         CityStreet = ecs_lookup_fullpath(world, "Street");
         CityPavement = ecs_lookup_fullpath(world, "Pavement");
         CityAc = ecs_lookup_fullpath(world, "Ac");

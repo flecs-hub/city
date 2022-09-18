@@ -27071,8 +27071,8 @@ SOKOL_API_IMPL sg_context_desc sapp_sgcontext(void) {
 #define SOKOL_MAX_FX_PASS (8)
 #define SOKOL_MAX_FX_PARAMS (32)
 #define SOKOL_SHADOW_MAP_SIZE (4096)
-#define SOKOL_DEFAULT_DEPTH_NEAR (2.0)
-#define SOKOL_DEFAULT_DEPTH_FAR (2500.0)
+#define SOKOL_DEFAULT_DEPTH_NEAR (1.0)
+#define SOKOL_DEFAULT_DEPTH_FAR (1500.0)
 
 typedef struct SokolQuery {
     ecs_query_t *query;

@@ -4,22 +4,22 @@ using flecs.components.transform
 using flecs.city
 using flecs.game
 
-my_city = City{
-  blocks_x: 40
-  blocks_y: 25
+my_city :- City {
+  blocks_x: 35
+  blocks_y: 20
   block_width: 15
   block_height: 25
   road_width: 6
 
   buildings: {
     min_height: 3
-    max_height: 70
+    max_height: 100
     x_variation: 0.5
     y_variation: 2.0
     small_height: 25
 
     modern_chance: 0.3
-    skyscraper_chance: 0.2
+    skyscraper_chance: 0.5
     backyard_chance: 1.0
   }
 
@@ -27,11 +27,11 @@ my_city = City{
     chance: 0.15,
     tree_chance: 1.0
     plaza_chance: 0.1
-    tree_count: 5
+    tree_count: 4
   }
 
   props: {
-    chance: 0.7
+    chance: 0.5
     tree_chance: 0.5
     bin_chance: 0.09
     hydrant_chance: 0.03
