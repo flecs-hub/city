@@ -50,8 +50,8 @@ ECS_STRUCT(City, {
     int16_t blocks_y;
     int16_t block_width;
     int16_t block_height;
-    int16_t road_width;
-    int16_t pavement_width;
+    float road_width;
+    float pavement_width;
 
     bool lanterns;
     bool street_signs;

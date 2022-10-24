@@ -3,9 +3,9 @@
 #include <city.h>
 
 /* Constants */
-#define PAVEMENT_HEIGHT (0.3f)
-#define PARK_HEIGHT (0.2f)
-#define PLAZA_HEIGHT (1.2f)
+#define PAVEMENT_HEIGHT (0.2f)
+#define PARK_HEIGHT (0.3f)
+#define PLAZA_HEIGHT (0.3f)
 #define PLAZA_POLE_HEIGHT (6.0f)
 #define STREETS_HEIGHT (10.0f)
 #define TRAFFIC_FREQUENCY (10.0f)
@@ -254,28 +254,30 @@ void plant_building(
 
     ecs_set_ptr(world, building, EcsRgb, &color);
 
-    if (building_height > city->buildings.small_height && randf(1.0) > 0.8) {
+    if (randf(1.0) > 0.2 && (building_height > city->buildings.small_height)) {
         float top_height = 10.0 * (randf(0.5) + 0.5);
         float top_dw = x_size * 0.3;
         top_height = glm_min(top_height, building_height * 0.05);
+
+        bool tall_building = (building_height > city->buildings.max_height);
 
         plant_building_top(world, parent, x, y, building_height, 
             top_height, x_size - top_dw, y_size - top_dw, 
             &color, modern);
 
-        if (randf(1.0) > 0.7) {
+        if (randf(1.0) > 0.2) {
             top_dw = x_size * 0.6;
             plant_building_top(world, parent, x, y, building_height, 
                 top_height * 2.0, x_size - top_dw, x_size - top_dw, 
                 &color, modern);
 
-            if (randf(1.0) > 0.5 && building_height > 35.0) {
+            if (tall_building || (randf(1.0) > 0.5)) {
                 top_dw = x_size * 0.9;
                 plant_building_top(world, parent, x, y, building_height, 
                     top_height * 3.0, x_size - top_dw, x_size - top_dw, 
                     &color, modern);
 
-                if (randf(1.0) > 0.3 && skyscraper) {
+                if (tall_building) {
                     top_dw = x_size * 0.96;
                     plant_building_top(world, parent, x, y, building_height, 
                         top_height * 6.0, x_size - top_dw, x_size - top_dw, 
@@ -303,7 +305,6 @@ void plant_city_block(
     float corner_h = block_height / 2.0 - pave_width / 2.0;
     float build_area_width = block_width - pave_width * 2;
     float build_area_height = block_height - pave_width * 2;
-    float build_area_ratio = build_area_width / build_area_height;
     float building_min_width = city->buildings.min_width;
 
     CityBlock block = {
@@ -356,12 +357,12 @@ void plant_city_block(
 
         if (height > city->buildings.small_height) {
             bool modern = rolldice(city->buildings.modern_chance);
-            
+
             bool skyscraper = false;
-            if (height > max_height * 0.7) {
+            if (height > max_height * 0.75) {
                 skyscraper = rolldice(city->buildings.skyscraper_chance);
                 if (skyscraper) {
-                    height = height * (1.2 + randf(1.0));
+                    height = height * 1.5;
                 }
             }
 
@@ -451,7 +452,7 @@ void plant_city_block(
                     for (int t = 0; t < city->parks.tree_count; t ++) {
                         float tx = srandf(block_width - pave_width * 4);
                         float ty = srandf(block_height - pave_width * 4);
-                        plant_tree(world, &block, tx, ty);
+                        plant_tree(world, &block, tx, ty + PARK_HEIGHT);
                     }
                 }
             }
@@ -503,8 +504,8 @@ void SetCity(ecs_iter_t *it) {
         int block_width = city->block_width;
         int block_height = city->block_height;
         int building_min_width = city->buildings.min_width;
-        int pavement_width = city->pavement_width;
-        int road_width = city->road_width;
+        float pavement_width = city->pavement_width;
+        float road_width = city->road_width;
         float traffic_speed = city->traffic.speed;
         float small_height = city->buildings.small_height;
 
@@ -536,7 +537,7 @@ void SetCity(ecs_iter_t *it) {
             city->road_width = road_width = 10;
         }
         if (!traffic_speed) {
-            traffic_speed = 15.0;
+            traffic_speed = 50.0;
         }
         if (!small_height) {
             city->buildings.small_height = 15.0;
@@ -544,62 +545,51 @@ void SetCity(ecs_iter_t *it) {
 
         float width = (float)block_width + (float)road_width;
         float height = (float)block_height + (float)road_width;
-
-        float left = -((float)width * blocks_x) / 2.0f;
-        float top = -((float)height * blocks_y) / 2.0f;
-        left -= width / 2.0;
-        top -= height / 2.0;
+        float city_width = blocks_x * width;
+        float city_height = blocks_y * height;
+        float left = -(city_width / 2.0f);
+        float top = -(city_height / 2.0f);
 
         CityBound bound = {
-            .width = blocks_x * width, 
-            .height = blocks_y * height,
-            .left =    left  - width / 2.0,
-            .right =   -left - width - width / 2.0,
-            .top =     top  - width / 2.0,
-            .bottom = -top - width - width / 2.0
+            .width =   city_width,
+            .height =  city_height,
+            .left =    left,
+            .right =   left + city_width,
+            .top =     top,
+            .bottom =  top + city_height
         };
 
         ecs_entity_t streets = ecs_new_w_pair(world, EcsChildOf, e);
         ecs_set_name(world, streets, "Streets");
         ecs_add_pair(world, streets, EcsIsA, CityStreet);
-        ecs_set(world, streets, EcsPosition3, {-width, STREETS_HEIGHT / 2.0, -height});
+        ecs_set(world, streets, EcsPosition3, {0, STREETS_HEIGHT / 2.0, 0});
         ecs_set(world, streets, EcsBox, {
-            blocks_x * width, STREETS_HEIGHT, blocks_y * height});
+            city_width, STREETS_HEIGHT, city_height});
 
         for (int x = 0; x < blocks_x; x ++) {
             for (int y = 0; y < blocks_y; y ++) {
                 plant_city_block(world, e, city, x, y,
-                    left + width * x, 
-                    top + height * y);
+                    left + width * x + width / 2.0f, 
+                    top + height * y + height / 2.0f);
             }
         }
 
         if (city->traffic.frequency) {
             for (int x = 0; x < blocks_x; x ++) {
-                float ex = left + width * x;
+                float block_left = left + width * x;
+                float lane_width = road_width / 2.0;
+                float lane_center = block_left + lane_width / 2.0;
 
                 ecs_entity_t emit_1 = ecs_new_id(world);
-                ecs_entity_t emit_2 = ecs_new_id(world);
                 ecs_set(world, emit_1, EcsPosition3, {
-                    ex + width / 2.0 - road_width / 4.0, 0.0, top - width / 2.0
+                    lane_center, 0, top
                 });
                 ecs_set(world, emit_1, CityTrafficEmitter, {
                     .initial_velocity = {0, 0.0, traffic_speed},
                     .initial_rotation = {0},
                     .bound = bound,
                     .frequency = city->traffic.frequency,
-                    .elapsed = randf(city->traffic.frequency)
-                });
-
-                ecs_set(world, emit_2, EcsPosition3, {
-                    ex - width / 2.0 + road_width / 4.0, 0.0, -top - width - width / 2.0
-                });
-                ecs_set(world, emit_2, CityTrafficEmitter, {
-                    .initial_velocity = {0, 0.0, -traffic_speed},
-                    .initial_rotation = {0, GLM_PI, 0},
-                    .bound = bound,
-                    .frequency = city->traffic.frequency,
-                    .elapsed = randf(city->traffic.frequency)
+                    .elapsed = 0
                 });
             }
         }
