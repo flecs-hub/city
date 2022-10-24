@@ -10,7 +10,8 @@ light :- DirectionalLight{
 
 camera {
   - CameraController
-  - Position3 {-200, -18.0, -480}
+
+  - Position3 {-210, -18.0, -480}
   - Rotation3 {0.2}
   - Camera {
       fov: 20

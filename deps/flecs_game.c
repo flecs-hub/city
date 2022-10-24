@@ -20,6 +20,7 @@ void FlecsGameImport(ecs_world_t *world) {
     ecs_set_name_prefix(world, "Ecs");
 
     ECS_TAG_DEFINE(world, EcsCameraController);
+    ECS_META_COMPONENT(world, EcsCameraAutoMove);
     ECS_META_COMPONENT(world, EcsWorldCellCoord);
 
     FlecsGameCameraControllerImport(world);
@@ -442,6 +443,25 @@ void CameraControllerDecelerate(ecs_iter_t *it) {
     }
 }
 
+static
+void CameraAutoMove(ecs_iter_t *it) {
+    EcsVelocity3 *v = ecs_field(it, EcsVelocity3, 1);
+    EcsCameraAutoMove *m = ecs_field(it, EcsCameraAutoMove, 2);
+
+    float dt = it->delta_time;
+
+    for (int i = 0; i < it->count; i ++) {
+        EcsVelocity3 *vcur = &v[i];
+        m->t += dt;
+        if ((m->t < m->after) && (vcur->x || vcur->y || vcur->z)) {
+            m->t = 0;
+        }
+        if (m->t > m->after) {
+            vcur->z = 10;
+        }
+    }
+}
+
 void FlecsGameCameraControllerImport(ecs_world_t *world) {
     ECS_SYSTEM(world, CameraControllerAddPosition, EcsOnLoad,
         [none]   flecs.components.graphics.Camera,
@@ -486,5 +506,9 @@ void FlecsGameCameraControllerImport(ecs_world_t *world) {
         [inout]  flecs.components.physics.AngularVelocity,
         [inout]  flecs.components.transform.Rotation3,
         [none]   CameraController);
+
+    ECS_SYSTEM(world, CameraAutoMove, EcsOnUpdate,
+        [inout]  flecs.components.physics.Velocity3,
+        [inout]  CameraAutoMove);
 }
 

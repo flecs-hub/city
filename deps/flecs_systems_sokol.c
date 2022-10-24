@@ -28285,7 +28285,7 @@ const char *shd_ssao_header =
     // Max threshold prevents darkening objects that are far away
     "#define MAX_THRESHOLD 220.0\n"
     // Min threshold decreases halo's around objects
-    "#define MIN_THRESHOLD 1.0001\n"
+    "#define MIN_THRESHOLD 1.1\n"
     // Misc params, tweaked to match the renderer
     "#define BIAS 0.2\n"
     "#define SCALE 1.0\n"
@@ -28338,10 +28338,11 @@ const char *shd_ssao_header =
     "    float n_dot_d = dot(centerViewNormal, viewDelta);\n"
     "    float scaled_n_dot_d = max(0.0, n_dot_d / scaledScreenDistance - BIAS);\n"
     "    float result = scaled_n_dot_d / (1.0 + pow2(scaledScreenDistance));\n"
+
     "    if (result > MAX_THRESHOLD) {\n"
     "      result = 0.0;\n"
     "    }\n"
-    "    return clamp(result, MIN_THRESHOLD, 2.0);\n"
+    "    return max(0.0, clamp(result, 1.1, 20.0) / 15.0 - 0.2);\n"
     "}\n"
 
     "float getAmbientOcclusion( const in vec3 centerViewPosition, float centerDepth ) {\n"
@@ -28378,7 +28379,7 @@ const char *shd_ssao_header =
     "    occlusionSum += getOcclusion( centerViewPosition, centerViewNormal, sampleViewPosition );\n"
     "  }\n"
 
-    "  return occlusionSum * (float(INTENSITY) / (float(NUM_SAMPLES)));\n"
+    "  return occlusionSum * (1.0 / (float(NUM_SAMPLES)));\n"
     "}\n"
     ;
 
@@ -28394,7 +28395,7 @@ const char *shd_ssao =
     "float ambientOcclusion = getAmbientOcclusion( viewPosition, centerDepth );\n"
 
     // Store value as rgba to increase precision
-    "frag_color = float_to_rgba(ambientOcclusion);\n"
+    "frag_color = vec4(ambientOcclusion, 0, 0, 0);\n"
     ;
 
 static
@@ -28404,7 +28405,8 @@ const char *shd_blend_mult_header =
 
 static
 const char *shd_blend_mult =
-    "float ambientOcclusion = rgba_to_float(texture(t_occlusion, uv));\n"
+    "float ambientOcclusion = texture(t_occlusion, uv).x;\n"
+    "frag_color = vec4(ambientOcclusion, ambientOcclusion, ambientOcclusion, 1.0);\n"
     "frag_color = (1.0 - ambientOcclusion) * texture(t_scene, uv);\n"
     ;
 
@@ -28425,7 +28427,7 @@ SokolFx sokol_init_ssao(
     // Ambient occlusion shader 
     int32_t ao = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
         .name = "ssao",
-        .outputs = {{ .global_size = true, .factor = 0.5 }},
+        .outputs = {{ .global_size = true, .factor = 1.0 }},
         .shader_header = shd_ssao_header,
         .shader = shd_ssao,
         .color_format = SG_PIXELFORMAT_RGBA8,
@@ -28440,7 +28442,7 @@ SokolFx sokol_init_ssao(
     // Blur to reduce the noise, so we can keep sample count low
     int blur = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
         .name = "blur",
-        .outputs = {{256}},
+        .outputs = {{512}},
         .shader_header = shd_blur_hdr,
         .shader = shd_blur,
         .color_format = SG_PIXELFORMAT_RGBA8,
