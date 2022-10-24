@@ -6,20 +6,20 @@ using flecs.game
 
 my_city :- City {
   blocks_x: 40
-  blocks_y: 30
+  blocks_y: 25
   block_width: 15
   block_height: 25
   road_width: 6
 
   buildings: {
-    min_height: 2
-    max_height: 90
+    min_height: 3
+    max_height: 100
     x_variation: 0.5
     y_variation: 2.0
     small_height: 50
 
     modern_chance: 0.3
-    skyscraper_chance: 0.35
+    skyscraper_chance: 0.4
     backyard_chance: 1.0
   }
 

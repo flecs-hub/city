@@ -28275,17 +28275,13 @@ SokolFx sokol_init_hdr(
 static
 const char *shd_ssao_header = 
     // Increase/decrease to trade quality for performance
-    "#define NUM_SAMPLES 8\n"
+    "#define NUM_SAMPLES 4\n"
     // The sample kernel uses a spiral pattern so most samples are concentrated
     // close to the center. 
     "#define NUM_RINGS 3\n"
     "#define KERNEL_RADIUS 35.0\n"
     // Intensity of the effect.
     "#define INTENSITY 1.0\n"
-    // Max threshold prevents darkening objects that are far away
-    "#define MAX_THRESHOLD 220.0\n"
-    // Min threshold decreases halo's around objects
-    "#define MIN_THRESHOLD 1.1\n"
     // Misc params, tweaked to match the renderer
     "#define BIAS 0.2\n"
     "#define SCALE 1.0\n"
@@ -28339,10 +28335,14 @@ const char *shd_ssao_header =
     "    float scaled_n_dot_d = max(0.0, n_dot_d / scaledScreenDistance - BIAS);\n"
     "    float result = scaled_n_dot_d / (1.0 + pow2(scaledScreenDistance));\n"
 
-    "    if (result > MAX_THRESHOLD) {\n"
+    // Strip off values that are too large which eliminates shadowing objects
+    // that are far away.
+    "    if (result > 220.0) {\n"
     "      result = 0.0;\n"
     "    }\n"
-    "    return max(0.0, clamp(result, 1.1, 20.0) / 15.0 - 0.2);\n"
+
+    // Squash the range and offset noise.
+    "    return max(0.0, clamp(result, 1.1, 20.0) / 13.0 - 0.2);\n"
     "}\n"
 
     "float getAmbientOcclusion( const in vec3 centerViewPosition, float centerDepth ) {\n"
@@ -28395,7 +28395,7 @@ const char *shd_ssao =
     "float ambientOcclusion = getAmbientOcclusion( viewPosition, centerDepth );\n"
 
     // Store value as rgba to increase precision
-    "frag_color = vec4(ambientOcclusion, 0, 0, 0);\n"
+    "frag_color = float_to_rgba(ambientOcclusion);\n"
     ;
 
 static
@@ -28405,8 +28405,8 @@ const char *shd_blend_mult_header =
 
 static
 const char *shd_blend_mult =
-    "float ambientOcclusion = texture(t_occlusion, uv).x;\n"
-    "frag_color = vec4(ambientOcclusion, ambientOcclusion, ambientOcclusion, 1.0);\n"
+    "float ambientOcclusion = rgba_to_float(texture(t_occlusion, uv));\n"
+    // "frag_color = vec4(ambientOcclusion, ambientOcclusion, ambientOcclusion, 1.0);\n"
     "frag_color = (1.0 - ambientOcclusion) * texture(t_scene, uv);\n"
     ;
 
@@ -28453,7 +28453,7 @@ SokolFx sokol_init_ssao(
                 .name = "ssao hblur",
                 .inputs = { {SOKOL_FX_PASS(ao)} },
                 .params = { 1.0 },
-                .loop_count = 2
+                .loop_count = 3
             },
             [1] = { 
                 .name = "ssao vblur",
