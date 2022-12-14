@@ -29,6 +29,7 @@ void FlecsGameImport(ecs_world_t *world) {
 
 
 ECS_DECLARE(EcsWorldCell);
+ECS_DECLARE(EcsWorldCellRoot);
 ECS_COMPONENT_DECLARE(WorldCells);
 ECS_COMPONENT_DECLARE(WorldCellCache);
 
@@ -82,6 +83,7 @@ ecs_entity_t flecs_game_get_cell(
     ecs_entity_t cell = *cell_ptr;
     if (!cell) {
         cell = *cell_ptr = ecs_new(world, EcsWorldCell);
+        ecs_add_pair(world, cell, EcsChildOf, EcsWorldCellRoot);
 
         // Decode cell coordinates from spatial hash
         int32_t left = (int32_t)cell_id;
@@ -195,6 +197,11 @@ void FlecsGameWorldCellsImport(ecs_world_t *world) {
 
     ecs_set_hooks(world, WorldCells, {
         .ctor = ecs_default_ctor
+    });
+
+    EcsWorldCellRoot = ecs_entity(world, {
+        .name = "::game.worldcells",
+        .root_sep = "::"
     });
 
     ECS_SYSTEM(world, AddWorldCellCache, EcsOnLoad,
@@ -365,26 +372,26 @@ void CameraControllerAccelerate(ecs_iter_t *it) {
 
         // Camera Y movement
         if (input->keys[ECS_KEY_E].state) {
-            v[i].y -= accel;
+            v[i].y += accel;
         }
         if (input->keys[ECS_KEY_Q].state) {
-            v[i].y += accel;
+            v[i].y -= accel;
         }
 
         // Camera Y rotation
-        if (input->keys[ECS_KEY_RIGHT].state) {
-            av[i].y += angular_accel;
-        }
         if (input->keys[ECS_KEY_LEFT].state) {
             av[i].y -= angular_accel;
+        }
+        if (input->keys[ECS_KEY_RIGHT].state) {
+            av[i].y += angular_accel;
         }
 
         // Camera X rotation
         if (input->keys[ECS_KEY_UP].state) {
-            av[i].x -= angular_accel;
+            av[i].x += angular_accel;
         }
         if (input->keys[ECS_KEY_DOWN].state) {
-            av[i].x += angular_accel;
+            av[i].x -= angular_accel;
         }
     }
 }

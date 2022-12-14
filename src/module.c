@@ -79,7 +79,7 @@ ecs_entity_t plant_object(ecs_world_t *world, CityBlock *block, float x, float y
     ecs_add_pair(world, e, EcsIsA, prop);
     ecs_set(world, e, EcsPosition3, {
         .x = block->x + x,
-        .y = -PAVEMENT_HEIGHT,
+        .y = PAVEMENT_HEIGHT,
         .z = block->y + y
     });
     return e;
@@ -175,7 +175,7 @@ void plant_plaza(ecs_world_t *world, CityBlock *block, float x, float y) {
     });
     ecs_set(world, prop, EcsPosition3, {
         .x = block->x + x,
-        .y = -0.1 - PLAZA_POLE_HEIGHT / 2.0, 
+        .y = 0.1 + PLAZA_POLE_HEIGHT / 2.0, 
         .z = block->y + y
     });
 }
@@ -197,7 +197,7 @@ ecs_entity_t plant_building_top(
     ecs_add_pair(world, top, EcsIsA, CityBuilding);
     ecs_set(world, top, EcsPosition3, {
         .x = x,
-        .y = -building_height - (top_height / 2.0),
+        .y = building_height + (top_height / 2.0),
         .z = y
     });
     ecs_set(world, top, EcsBox, { top_x, top_height, top_y });
@@ -224,7 +224,7 @@ void plant_building(
     ecs_add_pair(world, building, EcsIsA, CityBuilding);
     ecs_set(world, building, EcsPosition3, {
         .x = x,
-        .y = -(building_height / 2.0),
+        .y = building_height / 2.0,
         .z = y
     });
     ecs_set(world, building, EcsBox, {
@@ -321,7 +321,7 @@ void plant_city_block(
     ecs_add_pair(world, pavement, EcsIsA, CityPavement);
     ecs_set(world, pavement, EcsPosition3, {
         .x = x, 
-        .y = -(PAVEMENT_HEIGHT / 2.0), 
+        .y = PAVEMENT_HEIGHT / 2.0,
         .z = y
     });
     ecs_set(world, pavement, EcsBox, {
@@ -562,7 +562,7 @@ void SetCity(ecs_iter_t *it) {
         ecs_entity_t streets = ecs_new_w_pair(world, EcsChildOf, e);
         ecs_set_name(world, streets, "Streets");
         ecs_add_pair(world, streets, EcsIsA, CityStreet);
-        ecs_set(world, streets, EcsPosition3, {0, STREETS_HEIGHT / 2.0, 0});
+        ecs_set(world, streets, EcsPosition3, {0, -(STREETS_HEIGHT / 2.0), 0});
         ecs_set(world, streets, EcsBox, {
             city_width, STREETS_HEIGHT, city_height});
 

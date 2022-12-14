@@ -82,6 +82,9 @@ FLECS_GAME_API
 extern ECS_DECLARE(EcsWorldCell);
 
 FLECS_GAME_API
+extern ECS_DECLARE(EcsWorldCellRoot);
+
+FLECS_GAME_API
 ECS_STRUCT(EcsWorldCellCoord, {
     int64_t x;
     int64_t y;

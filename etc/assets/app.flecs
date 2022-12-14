@@ -4,21 +4,17 @@ using flecs.components.transform
 using flecs.game
 
 light :- DirectionalLight{
-  direction: [0.3, -1.0, 0.5]
+  direction: [0.3, -1.0, -0.5]
   color: [1.0, 1.05, 0.98]
 }
 
 camera {
   - CameraController
-  - CameraAutoMove {
-      after: 10
-      speed: 0.1
-  }
-  - Position3 {-145, -18.0, -400}
-  - Rotation3 {0.15}
+  - Position3 {-145, 18.0, -400}
+  - Rotation3 {-0.15}
   - Camera {
       fov: 20
-      up: [0, -1, 0]
+      up: [0, 1, 0]
   }
 }
 
@@ -31,6 +27,6 @@ canvas {
       ambient_light: {0.03, 0.06, 0.09}
       directional_light: light
       camera: camera
-      fog_density: 2.0
+      fog_density: 1.4
   }
 }

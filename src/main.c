@@ -1,7 +1,7 @@
 #include <city.h>
 
 int main(int argc, char *argv[]) {
-    ecs_log_set_level(0);
+    // ecs_log_set_level(2);
     
     ecs_world_t *world = ecs_init();
     

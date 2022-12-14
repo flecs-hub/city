@@ -28281,7 +28281,7 @@ const char *shd_ssao_header =
     "#define NUM_RINGS 3\n"
     "#define KERNEL_RADIUS 35.0\n"
     // Intensity of the effect.
-    "#define INTENSITY 1.0\n"
+    "#define INTENSITY 0.5\n"
     // Misc params, tweaked to match the renderer
     "#define BIAS 0.2\n"
     "#define SCALE 1.0\n"
@@ -29685,10 +29685,10 @@ float quad_vertices_uvs[] = {
 
 static
 vec3 rectangle_vertices[] = {
-    {-0.5, -0.5, 0.0},
-    { 0.5, -0.5, 0.0},
+    {-0.5,  0.5, 0.0},
     { 0.5,  0.5, 0.0},
-    {-0.5,  0.5, 0.0}
+    { 0.5, -0.5, 0.0},
+    {-0.5, -0.5, 0.0},
 };
 
 static
@@ -29699,35 +29699,35 @@ uint16_t rectangle_indices[] = {
 
 static
 vec3 box_vertices[] = {
-    {-0.5f, -0.5f, -0.5f}, // Back   
-    { 0.5f, -0.5f, -0.5f},    
-    { 0.5f,  0.5f, -0.5f},    
     {-0.5f,  0.5f, -0.5f},  
-
-    {-0.5f, -0.5f,  0.5f}, // Front  
-    { 0.5f, -0.5f,  0.5f},    
-    { 0.5f,  0.5f,  0.5f},    
-    {-0.5f,  0.5f,  0.5f}, 
-
-    {-0.5f, -0.5f, -0.5f}, // Left   
-    {-0.5f,  0.5f, -0.5f},    
-    {-0.5f,  0.5f,  0.5f},    
-    {-0.5f, -0.5f,  0.5f},    
-
-    { 0.5f, -0.5f, -0.5f}, // Right   
     { 0.5f,  0.5f, -0.5f},    
-    { 0.5f,  0.5f,  0.5f},    
-    { 0.5f, -0.5f,  0.5f},    
-
-    {-0.5f, -0.5f, -0.5f}, // Bottom   
-    {-0.5f, -0.5f,  0.5f},    
-    { 0.5f, -0.5f,  0.5f},    
     { 0.5f, -0.5f, -0.5f},    
+    {-0.5f, -0.5f, -0.5f}, // Back   
 
-    {-0.5f,  0.5f, -0.5f}, // Top   
+    {-0.5f,  0.5f,  0.5f}, 
+    { 0.5f,  0.5f,  0.5f},    
+    { 0.5f, -0.5f,  0.5f},    
+    {-0.5f, -0.5f,  0.5f}, // Front  
+
+    {-0.5f, -0.5f,  0.5f},    
     {-0.5f,  0.5f,  0.5f},    
+    {-0.5f,  0.5f, -0.5f},    
+    {-0.5f, -0.5f, -0.5f}, // Left   
+
+    { 0.5f, -0.5f,  0.5f},    
     { 0.5f,  0.5f,  0.5f},    
     { 0.5f,  0.5f, -0.5f},    
+    { 0.5f, -0.5f, -0.5f}, // Right   
+
+    { 0.5f, -0.5f, -0.5f},    
+    { 0.5f, -0.5f,  0.5f},    
+    {-0.5f, -0.5f,  0.5f},    
+    {-0.5f, -0.5f, -0.5f}, // Bottom   
+
+    { 0.5f,  0.5f, -0.5f},    
+    { 0.5f,  0.5f,  0.5f},    
+    {-0.5f,  0.5f,  0.5f},    
+    {-0.5f,  0.5f, -0.5f}, // Top   
 };
 
 static
@@ -30086,7 +30086,9 @@ void sokol_init_global_uniforms(
         state->uniforms.ortho = cam.ortho;
 
         glm_vec3_copy(cam.position, state->uniforms.eye_pos);
+        state->uniforms.eye_pos[0] = -state->uniforms.eye_pos[0];
         glm_vec3_copy(cam.lookat, state->uniforms.eye_lookat);
+        state->uniforms.eye_lookat[0] = -state->uniforms.eye_lookat[0];
     }
 
     /* Orthographic/perspective projection matrix */
@@ -30104,6 +30106,11 @@ void sokol_init_global_uniforms(
 
     /* View + view * projection matrix */
     glm_lookat(state->uniforms.eye_pos, state->uniforms.eye_lookat, state->uniforms.eye_up, state->uniforms.mat_v);
+
+    /* Flip x axis so -1 is on left and 1 is on right */
+    vec3 flip_x = {-1, 1, 1};
+    glm_scale(state->uniforms.mat_v, flip_x);
+
     glm_mat4_mul(state->uniforms.mat_p, state->uniforms.mat_v, state->uniforms.mat_vp);
 
     /* Light parameters */
@@ -30174,7 +30181,7 @@ void SokolRender(ecs_iter_t *it) {
         state.light = ecs_get(world, canvas->directional_light, 
             EcsDirectionalLight);
         // sokol_init_light_mat_vp(&state);
-        // sokol_run_shadow_pass(&r->shadow_pass, &state);  
+        // sokol_run_shadow_pass(&r->shadow_pass, &state);
     } else {
         /* Set default ambient light if nothing is configured */
         if (!state.ambient_light.r && !state.ambient_light.g && 
