@@ -307,7 +307,7 @@ typedef struct cube_t {
 } cube_t;
 
 struct ecs_octree_t {
-    ecs_sparse_t *cubes;
+    ecs_sparse_t cubes;
     ecs_vector_t *free_cubes;
     cube_t root;
     vec3 center;
@@ -329,8 +329,8 @@ cube_t *new_cube(
 {
     cube_t *result;
     if (!ecs_vector_pop(ot->free_cubes, cube_t*, &result)) {
-        result = ecs_sparse_add(ot->cubes, cube_t);
-        result->id = (int32_t)ecs_sparse_last_id(ot->cubes);
+        result = ecs_sparse_add_t(&ot->cubes, cube_t);
+        result->id = (int32_t)ecs_sparse_last_id(&ot->cubes);
     }
     
     result->parent = parent;
@@ -647,7 +647,7 @@ ecs_octree_t* ecs_octree_new(
     ecs_octree_t *result = ecs_os_calloc(sizeof(ecs_octree_t));
     glm_vec3_copy(center, result->center);
     result->size = size;
-    result->cubes = ecs_sparse_new(cube_t);
+    ecs_sparse_init_t(&result->cubes, cube_t);
     return result;
 }
 
@@ -659,11 +659,11 @@ void ecs_octree_clear(
     /* Keep existing cubes intact so that we can reuse them when the octree is
      * repopulated. This lets us keep the entity vectors, and should cause the
      * octree memory to stabilize eventually. */
-    int32_t i, count = ecs_sparse_count(ot->cubes);
+    int32_t i, count = ecs_sparse_count(&ot->cubes);
     for (i = 0; i < count; i ++) {
-        cube_t *cube = ecs_sparse_get_dense(ot->cubes, cube_t, i);
+        cube_t *cube = ecs_sparse_get_dense_t(&ot->cubes, cube_t, i);
         ecs_vector_clear(cube->entities);
-        memset(cube->nodes, 0, sizeof(cube_t*) * 8);
+        ecs_os_memset_n(cube->nodes, 0, cube_t*, 8);
 
         if (cube->parent) {
             cube_t **cptr = ecs_vector_add(&ot->free_cubes, cube_t*);
@@ -674,7 +674,7 @@ void ecs_octree_clear(
 
     /* Clear entities of root */
     ecs_vector_clear(ot->root.entities);
-    memset(ot->root.nodes, 0, sizeof(cube_t*) * 8);
+    ecs_os_memset_n(ot->root.nodes, 0, cube_t*, 8);
     ot->count = 0;
 }
 

@@ -30447,7 +30447,7 @@ static
 sokol_geometry_buffers_t* sokol_create_buffers(void) {
     sokol_geometry_buffers_t *result = ecs_os_calloc_t(sokol_geometry_buffers_t);
     result->first = NULL;
-    ecs_map_init(&result->index, sokol_geometry_buffer_t*, NULL, 0);
+    ecs_map_init(&result->index, NULL);
 
     flecs_allocator_init(&result->allocator);
     ecs_vec_init_t(&result->allocator, &result->colors_data, ecs_rgb_t, 0);
@@ -30487,8 +30487,8 @@ sokol_geometry_buffer_t* sokol_create_buffer(
     sokol_geometry_buffers_t *buffers,
     ecs_entity_t buffer_id)
 {
-    sokol_geometry_buffer_t **ptr = ecs_map_ensure(&buffers->index, 
-        sokol_geometry_buffer_t*, buffer_id);
+    sokol_geometry_buffer_t **ptr = ecs_map_ensure_ref(&buffers->index, 
+        sokol_geometry_buffer_t, buffer_id);
     sokol_geometry_buffer_t *result = *ptr;
     if (!result) {
         result = *ptr = ecs_os_calloc_t(sokol_geometry_buffer_t);
@@ -30515,9 +30515,8 @@ void sokol_delete_buffer(
 {
     ecs_assert(buffer != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(buffers != NULL, ECS_INTERNAL_ERROR, NULL);
-    ecs_assert(buffer == ecs_map_get_ptr(&buffers->index, 
-        sokol_geometry_buffer_t*, buffer->id), 
-            ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(buffer == ecs_map_get_deref(&buffers->index, 
+        sokol_geometry_buffer_t, buffer->id), ECS_INTERNAL_ERROR, NULL);
 
     // Groups must have been cleaned up before buffer instance is deleted
     ecs_assert(buffer->groups == NULL, ECS_INTERNAL_ERROR, NULL);

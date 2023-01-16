@@ -5,8 +5,8 @@ using flecs.city
 using flecs.game
 
 my_city :- City {
-  blocks_x: 40
-  blocks_y: 25
+  blocks_x: 35
+  blocks_y: 20
   block_width: 15
   block_height: 25
   road_width: 6
@@ -38,7 +38,7 @@ my_city :- City {
     bench_chance: 0.08
   }
 
-  traffic: { frequency: 0.0 }
+  traffic: { frequency: 0 }
 
   lanterns: true
 }
