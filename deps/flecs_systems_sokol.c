@@ -27836,6 +27836,47 @@ void keys_reset(
 }
 
 static
+void mouse_down(
+    ecs_key_state_t *mouse)
+{
+    if (mouse->state) {
+        mouse->pressed = false;
+    } else {
+        mouse->pressed = true;
+    }
+
+    mouse->state = true;
+    mouse->current = true;
+}
+
+static
+void mouse_up(
+    ecs_key_state_t *mouse)
+{
+    mouse->current = false;
+}
+
+static
+void mouse_button_reset(
+    ecs_key_state_t *mouse)
+{
+    if (!mouse->current) {
+        mouse->state = 0;
+        mouse->pressed = 0;
+    } else if (mouse->state) {
+        mouse->pressed = 0;
+    }
+}
+
+static
+void mouse_reset(
+    EcsInput *input)
+{
+    mouse_button_reset(&input->mouse.left);
+    mouse_button_reset(&input->mouse.right);
+}
+
+static
 ecs_entity_t sokol_get_canvas(const ecs_world_t *world) {
     ecs_entity_t result = 0;
 
@@ -27858,8 +27899,18 @@ void sokol_input_action(const sapp_event* evt, sokol_app_ctx_t *ctx) {
 
     switch (evt->type) {
     case SAPP_EVENTTYPE_MOUSE_DOWN:
+        if (evt->mouse_button == SAPP_MOUSEBUTTON_LEFT)
+            mouse_down(&input->mouse.left);
+        
+        if (evt->mouse_button == SAPP_MOUSEBUTTON_RIGHT)
+            mouse_down(&input->mouse.right);
         break;
     case SAPP_EVENTTYPE_MOUSE_UP:
+        if (evt->mouse_button == SAPP_MOUSEBUTTON_LEFT)
+            mouse_up(&input->mouse.left);
+        
+        if (evt->mouse_button == SAPP_MOUSEBUTTON_RIGHT)
+            mouse_up(&input->mouse.right);
         break;
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
         break;
@@ -27884,6 +27935,7 @@ void sokol_frame_action(sokol_app_ctx_t *ctx) {
     /* Reset input buffer */
     EcsInput *input = ecs_singleton_get_mut(ctx->world, EcsInput);
     keys_reset(input);
+    mouse_reset(input);
 }
 
 static

@@ -496,6 +496,9 @@ void SetCity(ecs_iter_t *it) {
 
     for (int i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
+
+        ecs_delete_with(world, ecs_pair(EcsChildOf, e));
+
         City *city = &cities[i];
         int blocks_x = city->blocks_x;
         int blocks_y = city->blocks_y;
@@ -559,9 +562,10 @@ void SetCity(ecs_iter_t *it) {
             .bottom =  top + city_height
         };
 
-        ecs_entity_t streets = ecs_new_w_pair(world, EcsChildOf, e);
-        ecs_set_name(world, streets, "Streets");
-        ecs_add_pair(world, streets, EcsIsA, CityStreet);
+        ecs_entity_t streets = ecs_entity(world, {
+            .add = { ecs_childof(e), ecs_isa(CityStreet) }
+        });
+
         ecs_set(world, streets, EcsPosition3, {0, -(STREETS_HEIGHT / 2.0), 0});
         ecs_set(world, streets, EcsBox, {
             city_width, STREETS_HEIGHT, city_height});
