@@ -1,16 +1,19 @@
-using flecs.components.gui
-using flecs.components.graphics
-using flecs.components.transform
+using flecs.components.*
 using flecs.game
 
-light :- DirectionalLight{
-  direction: [0.3, -1.0, -0.5]
-  color: [1.0, 1.05, 0.98]
+light {
+  - Sun
+  - Rotation3{y: 0.5}
+}
+
+$ :- TimeOfDay {
+  t: 0.1
+  speed: 0.0005
 }
 
 camera {
   - CameraController
-  - Position3 {-145, 18.0, -300}
+  - Position3 {-75, 18.0, -300}
   - Rotation3 {-0.15}
   - Camera {
       fov: 20
@@ -19,14 +22,15 @@ camera {
 }
 
 canvas {
+  - Atmosphere
   - Canvas {
       title: "Flecs City"
-      width: 1600
-      height: 1200
+      width: 1200
+      height: 900
       background_color: {0.3, 0.6, 0.9}
       ambient_light: {0.03, 0.06, 0.09}
       directional_light: light
       camera: camera
-      fog_density: 1.4
+      fog_density: 6
   }
 }

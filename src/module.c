@@ -339,16 +339,10 @@ void plant_city_block(
         float dy = (y_i - max_dy) / max_dy;
         float d = 1.0 - sqrt(dx * dx + dy * dy);
 
-        /* Exponential falloff */
         d *= d;
 
         /* Add some variability so the falloff isn't too predictable */
-        d = randf(0.2) + d * 0.8;
-
-        /* Don't apply correction for the inner center */
-        if (d >= 0.7) {
-            d = 1.0;
-        }
+        d = randf(0.1) + d * 0.9;
 
         float height_v = (max_height - min_height); /* max variation */
         float height = min_height + height_v * randf(1.0) * d;
@@ -494,6 +488,8 @@ void SetCity(ecs_iter_t *it) {
 
     ecs_world_t *world = it->world;
 
+    srand(0);
+
     for (int i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
 
@@ -584,7 +580,7 @@ void SetCity(ecs_iter_t *it) {
                 float lane_width = road_width / 2.0;
                 float lane_center = block_left + lane_width / 2.0;
 
-                ecs_entity_t emit_1 = ecs_new_id(world);
+                ecs_entity_t emit_1 = ecs_new_w_pair(world, EcsChildOf, e);
                 ecs_set(world, emit_1, EcsPosition3, {
                     lane_center, 0, top
                 });

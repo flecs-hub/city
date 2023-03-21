@@ -28,7 +28,9 @@
 #include "flecs.h"
 #include "flecs_components_input.h"
 #include "flecs_components_graphics.h"
+#include "flecs_components_gui.h"
 #include "flecs_components_transform.h"
+#include "flecs_components_geometry.h"
 #include "flecs_components_physics.h"
 #include "flecs_systems_physics.h"
 
@@ -79,6 +81,12 @@ ECS_STRUCT(EcsCameraAutoMove, {
 });
 
 FLECS_GAME_API
+ECS_STRUCT(EcsTimeOfDay, {
+    float t;
+    float speed;
+});
+
+FLECS_GAME_API
 extern ECS_DECLARE(EcsWorldCell);
 
 FLECS_GAME_API
@@ -89,6 +97,32 @@ ECS_STRUCT(EcsWorldCellCoord, {
     int64_t x;
     int64_t y;
     int32_t size;
+});
+
+FLECS_GAME_API
+ECS_STRUCT(ecs_grid_slot_t, {
+    ecs_entity_t prefab;
+    float chance;
+});
+
+FLECS_GAME_API
+ECS_STRUCT(ecs_grid_coord_t, {
+    int32_t count;
+    float spacing;
+    float variation;
+});
+
+FLECS_GAME_API
+ECS_STRUCT(EcsGrid, {
+    ecs_grid_coord_t x;
+    ecs_grid_coord_t y;
+    ecs_grid_coord_t z;
+
+    EcsPosition3 border;
+    EcsPosition3 border_offset;
+
+    ecs_entity_t prefab;
+    ecs_grid_slot_t variations[20];
 });
 
 FLECS_GAME_API

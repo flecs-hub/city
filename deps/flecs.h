@@ -268,6 +268,7 @@ extern "C" {
 #define EcsIdTag                       (1u << 9)
 #define EcsIdWith                      (1u << 10)
 #define EcsIdUnion                     (1u << 11)
+#define EcsIdAlwaysOverride            (1u << 12)
 
 #define EcsIdHasOnAdd                  (1u << 15) /* Same values as table flags */
 #define EcsIdHasOnRemove               (1u << 16) 
@@ -300,7 +301,8 @@ extern "C" {
 #define EcsIterNoResults               (1u << 6u)  /* Iterator has no results */
 #define EcsIterIgnoreThis              (1u << 7u)  /* Only evaluate non-this terms */
 #define EcsIterMatchVar                (1u << 8u)  
-#define EcsIterProfile                 (1u << 10u) /* Profile iterator performance */
+#define EcsIterHasCondSet              (1u << 10u) /* Does iterator have conditionally set fields */
+#define EcsIterProfile                 (1u << 11u) /* Profile iterator performance */
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Filter flags (used by ecs_filter_t::flags)
@@ -322,8 +324,8 @@ extern "C" {
 #define EcsFilterNoData                (1u << 7u)  /* When true, data fields won't be populated */
 #define EcsFilterIsInstanced           (1u << 8u)  /* Is filter instanced (see ecs_filter_desc_t) */
 #define EcsFilterPopulate              (1u << 9u)  /* Populate data, ignore non-matching fields */
-#define EcsIterProfile               (1u << 10u) /* Profile filter performance */
-
+#define EcsFilterHasCondSet            (1u << 10u) /* Does filter have conditionally set fields */
+#define EcsFilterUnresolvedByName      (1u << 11u) /* Use by-name matching for unresolved entity identifiers */
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Table flags (used by ecs_table_t::flags)
@@ -642,6 +644,7 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 #define ecs_entity_t_comb(lo, hi) ((ECS_CAST(uint64_t, hi) << 32) + ECS_CAST(uint32_t, lo))
 
 #define ecs_pair(pred, obj) (ECS_PAIR | ecs_entity_t_comb(obj, pred))
+#define ecs_pair_t(pred, obj) (ECS_PAIR | ecs_entity_t_comb(obj, ecs_id(pred)))
 #define ecs_pair_first(world, pair) ecs_get_alive(world, ECS_PAIR_FIRST(pair))
 #define ecs_pair_second(world, pair) ecs_get_alive(world, ECS_PAIR_SECOND(pair))
 #define ecs_pair_relation ecs_pair_first
@@ -754,6 +757,10 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 
 #ifndef FLECS_VEC_H
 #define FLECS_VEC_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** A component column. */
 typedef struct ecs_vec_t {
@@ -926,6 +933,10 @@ void* ecs_vec_last(
 
 #define ecs_vec_last_t(vec, T) \
     ECS_CAST(T*, ecs_vec_last(vec, ECS_SIZEOF(T)))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif 
 
@@ -2631,15 +2642,16 @@ typedef enum ecs_oper_kind_t {
 } ecs_oper_kind_t;
 
 /* Term id flags  */
-#define EcsSelf                       (1u << 1) /**< Match on self */
-#define EcsUp                         (1u << 2) /**< Match by traversing upwards */
-#define EcsDown                       (1u << 3) /**< Match by traversing downwards (derived, cannot be set) */
-#define EcsTraverseAll                (1u << 4) /**< Match all entities encountered through traversal */
-#define EcsCascade                    (1u << 5) /**< Sort results breadth first */
-#define EcsParent                     (1u << 6) /**< Short for up(ChildOf) */
-#define EcsIsVariable                 (1u << 7) /**< Term id is a variable */
-#define EcsIsEntity                   (1u << 8) /**< Term id is an entity */
-#define EcsFilter                     (1u << 9) /**< Prevent observer from triggering on term */
+#define EcsSelf                       (1u << 1)  /**< Match on self */
+#define EcsUp                         (1u << 2)  /**< Match by traversing upwards */
+#define EcsDown                       (1u << 3)  /**< Match by traversing downwards (derived, cannot be set) */
+#define EcsTraverseAll                (1u << 4)  /**< Match all entities encountered through traversal */
+#define EcsCascade                    (1u << 5)  /**< Sort results breadth first */
+#define EcsParent                     (1u << 6)  /**< Short for up(ChildOf) */
+#define EcsIsVariable                 (1u << 7)  /**< Term id is a variable */
+#define EcsIsEntity                   (1u << 8)  /**< Term id is an entity */
+#define EcsIsName                     (1u << 9)  /**< Term id is a name (don't attempt to lookup as entity) */
+#define EcsFilter                     (1u << 10) /**< Prevent observer from triggering on term */
 #define EcsTraverseFlags              (EcsUp|EcsDown|EcsTraverseAll|EcsSelf|EcsCascade|EcsParent)
 
 /* Term flags discovered & set during filter creation. */
@@ -2839,7 +2851,6 @@ struct ecs_type_info_t {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Opaque types
@@ -3867,6 +3878,13 @@ FLECS_API extern const ecs_entity_t EcsFinal;
  */
 FLECS_API extern const ecs_entity_t EcsDontInherit;
 
+/** Ensures a component is always overridden.
+ * 
+ * Behavior:
+ *   As if the component is added together with OVERRIDE | T
+ */
+FLECS_API extern const ecs_entity_t EcsAlwaysOverride;
+
 /** Marks relationship as commutative.
  * Behavior:
  *   if R(X, Y) then R(Y, X)
@@ -4004,6 +4022,11 @@ FLECS_API extern const ecs_entity_t EcsPanic;
  * a hint, serialization formats are not required to use it. Adding this 
  * component does not change the behavior of core ECS operations. */
 FLECS_API extern const ecs_entity_t EcsDefaultChildComponent;
+
+/* Builtin predicates for comparing entity ids in queries. Only supported by rules */
+FLECS_API extern const ecs_entity_t EcsPredEq;
+FLECS_API extern const ecs_entity_t EcsPredMatch;
+FLECS_API extern const ecs_entity_t EcsPredLookup;
 
 /** Tag used to indicate query is empty */
 FLECS_API extern const ecs_entity_t EcsEmpty;
@@ -6024,7 +6047,7 @@ bool ecs_id_is_union(
  */
 FLECS_API
 bool ecs_id_in_use(
-    ecs_world_t *world,
+    const ecs_world_t *world,
     ecs_id_t id);
 
 /** Get the type for an id.
@@ -6560,7 +6583,7 @@ void ecs_query_fini(
  */
 FLECS_API
 const ecs_filter_t* ecs_query_get_filter(
-    ecs_query_t *query);    
+    const ecs_query_t *query);
 
 /** Return a query iterator.
  * A query iterator lets an application iterate over entities that match the
@@ -6734,7 +6757,7 @@ void ecs_query_set_group(
  */
 FLECS_API
 void* ecs_query_get_group_ctx(
-    ecs_query_t *query,
+    const ecs_query_t *query,
     uint64_t group_id);
 
 /** Get information about query group.
@@ -6747,7 +6770,7 @@ void* ecs_query_get_group_ctx(
  */
 FLECS_API
 const ecs_query_group_info_t* ecs_query_get_group_info(
-    ecs_query_t *query,
+    const ecs_query_t *query,
     uint64_t group_id);
 
 /** Returns whether query is orphaned.
@@ -6760,7 +6783,7 @@ const ecs_query_group_info_t* ecs_query_get_group_info(
  */
 FLECS_API
 bool ecs_query_orphaned(
-    ecs_query_t *query);
+    const ecs_query_t *query);
 
 /** Convert query to string.
  *
@@ -7769,6 +7792,16 @@ void* ecs_value_new(
     ecs_world_t *world,
     ecs_entity_t type);
 
+/** Construct a value in new storage 
+ * 
+ * @param world The world.
+ * @param ti The type info of the type to create.
+ * @return Pointer to type if success, NULL if failed.
+ */
+void* ecs_value_new_w_type_info(
+    ecs_world_t *world,
+    const ecs_type_info_t *ti);
+
 /** Destruct a value 
  * 
  * @param world The world.
@@ -8673,17 +8706,6 @@ int ecs_value_move_ctor(
 #ifndef FLECS_ADDONS_H
 #define FLECS_ADDONS_H
 
-/* Don't enable web addons if we're running as a webasm app */
-#ifdef ECS_TARGET_EM
-#ifndef FLECS_NO_HTTP
-#define FLECS_NO_HTTP
-#endif // FLECS_NO_HTTP
-
-#ifndef FLECS_NO_REST
-#define FLECS_NO_REST
-#endif // FLECS_NO_REST
-#endif // ECS_TARGET_EM
-
 /* Blacklist macros */
 #ifdef FLECS_NO_CPP
 #undef FLECS_CPP
@@ -9258,27 +9280,34 @@ void _ecs_parser_errorv(
 //// Functions that are always available
 ////////////////////////////////////////////////////////////////////////////////
 
-/** Enable or disable tracing.
- * This will enable builtin tracing. For tracing to work, it will have to be
+/** Enable or disable log.
+ * This will enable builtin log. For log to work, it will have to be
  * compiled in which requires defining one of the following macros:
  *
- * FLECS_LOG_0 - All tracing is disabled
- * FLECS_LOG_1 - Enable tracing level 1
- * FLECS_LOG_2 - Enable tracing level 2 and below
- * FLECS_LOG_3 - Enable tracing level 3 and below
+ * FLECS_LOG_0 - All log is disabled
+ * FLECS_LOG_1 - Enable log level 1
+ * FLECS_LOG_2 - Enable log level 2 and below
+ * FLECS_LOG_3 - Enable log level 3 and below
  *
- * If no tracing level is defined and this is a debug build, FLECS_LOG_3 will
+ * If no log level is defined and this is a debug build, FLECS_LOG_3 will
  * have been automatically defined.
  *
- * The provided level corresponds with the tracing level. If -1 is provided as
+ * The provided level corresponds with the log level. If -1 is provided as
  * value, warnings are disabled. If -2 is provided, errors are disabled as well.
  *
  * @param level Desired tracing level.
- * @return Previous tracing level.
+ * @return Previous log level.
  */
 FLECS_API
 int ecs_log_set_level(
     int level);
+
+/** Get current log level. 
+ * 
+ * @return Previous log level.
+ */
+FLECS_API
+int ecs_log_get_level(void);
 
 /** Enable/disable tracing with colors.
  * By default colors are enabled.
@@ -9394,6 +9423,7 @@ int ecs_log_last_error(void);
 #endif // FLECS_LOG_H
 
 
+/* Handle addon dependencies that need declarations to be visible in header */
 #ifdef FLECS_MONITOR
 #ifndef FLECS_STATS
 #define FLECS_STATS
@@ -9404,6 +9434,14 @@ int ecs_log_last_error(void);
 #ifndef FLECS_TIMER
 #define FLECS_TIMER
 #endif
+#endif
+
+#ifdef FLECS_REST
+#define FLECS_HTTP
+#endif
+
+#ifdef FLECS_PLECS
+#define FLECS_EXPR
 #endif
 
 #ifdef FLECS_APP
@@ -9528,6 +9566,251 @@ int ecs_app_set_frame_action(
 #endif // FLECS_APP
 
 #endif
+#ifdef FLECS_HTTP
+#ifdef FLECS_NO_HTTP
+#error "FLECS_NO_HTTP failed: HTTP is required by other addons"
+#endif
+/**
+ * @file addons/http.h
+ * @brief HTTP addon.
+ * 
+ * Minimalistic HTTP server that can receive and reply to simple HTTP requests.
+ * The main goal of this addon is to enable remotely connecting to a running
+ * Flecs application (for example, with a web-based UI) and request/visualize
+ * data from the ECS world.
+ * 
+ * Each server instance creates a single thread used for receiving requests.
+ * Receiving requests are enqueued and handled when the application calls
+ * ecs_http_server_dequeue. This increases latency of request handling vs.
+ * responding directly in the receive thread, but is better suited for 
+ * retrieving data from ECS applications, as requests can be processed by an ECS
+ * system without having to lock the world.
+ * 
+ * This server is intended to be used in a development environment.
+ */
+
+#ifdef FLECS_HTTP
+
+/**
+ * @defgroup c_addons_http Http
+ * @brief Simple HTTP server used for serving up REST API.
+ * 
+ * \ingroup c_addons
+ * @{
+ */
+
+#if !defined(FLECS_OS_API_IMPL) && !defined(FLECS_NO_OS_API_IMPL)
+#define FLECS_OS_API_IMPL
+#endif
+
+#ifndef FLECS_HTTP_H
+#define FLECS_HTTP_H
+
+/* Maximum number of headers in request */
+#define ECS_HTTP_HEADER_COUNT_MAX (32)
+
+/* Maximum number of query parameters in request */
+#define ECS_HTTP_QUERY_PARAM_COUNT_MAX (32)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** HTTP server */
+typedef struct ecs_http_server_t ecs_http_server_t;
+
+/** A connection manages communication with the remote host */
+typedef struct {
+    uint64_t id;
+    ecs_http_server_t *server;
+
+    char host[128];
+    char port[16];
+} ecs_http_connection_t;
+
+/** Helper type used for headers & URL query parameters */
+typedef struct {
+    const char *key;
+    const char *value;
+} ecs_http_key_value_t;
+
+/** Supported request methods */
+typedef enum {
+    EcsHttpGet,
+    EcsHttpPost,
+    EcsHttpPut,
+    EcsHttpDelete,
+    EcsHttpOptions,
+    EcsHttpMethodUnsupported
+} ecs_http_method_t;
+
+/** A request */
+typedef struct {
+    uint64_t id;
+
+    ecs_http_method_t method;
+    char *path;
+    char *body;
+    ecs_http_key_value_t headers[ECS_HTTP_HEADER_COUNT_MAX];
+    ecs_http_key_value_t params[ECS_HTTP_HEADER_COUNT_MAX];
+    int32_t header_count;
+    int32_t param_count;
+
+    ecs_http_connection_t *conn;
+} ecs_http_request_t;
+
+/** A reply */
+typedef struct {
+    int code;                   /**< default = 200 */
+    ecs_strbuf_t body;          /**< default = "" */
+    const char* status;         /**< default = OK */
+    const char* content_type;   /**< default = application/json */
+    ecs_strbuf_t headers;       /**< default = "" */
+} ecs_http_reply_t;
+
+#define ECS_HTTP_REPLY_INIT \
+    (ecs_http_reply_t){200, ECS_STRBUF_INIT, "OK", "application/json", ECS_STRBUF_INIT}
+
+/* Global statistics. */
+extern int64_t ecs_http_request_received_count;
+extern int64_t ecs_http_request_invalid_count;
+extern int64_t ecs_http_request_handled_ok_count;
+extern int64_t ecs_http_request_handled_error_count;
+extern int64_t ecs_http_request_not_handled_count;
+extern int64_t ecs_http_request_preflight_count;
+extern int64_t ecs_http_send_ok_count;
+extern int64_t ecs_http_send_error_count;
+extern int64_t ecs_http_busy_count;
+
+/** Request callback.
+ * Invoked for each valid request. The function should populate the reply and
+ * return true. When the function returns false, the server will reply with a 
+ * 404 (Not found) code. */
+typedef bool (*ecs_http_reply_action_t)(
+    const ecs_http_request_t* request, 
+    ecs_http_reply_t *reply,
+    void *ctx);
+
+/** Used with ecs_http_server_init. */
+typedef struct {
+    ecs_http_reply_action_t callback; /**< Function called for each request  */
+    void *ctx;                        /**< Passed to callback (optional) */
+    uint16_t port;                    /**< HTTP port */
+    const char *ipaddr;               /**< Interface to listen on (optional) */
+    int32_t send_queue_wait_ms;       /**< Send queue wait time when empty */
+} ecs_http_server_desc_t;
+
+/** Create server. 
+ * Use ecs_http_server_start to start receiving requests.
+ * 
+ * @param desc Server configuration parameters.
+ * @return The new server, or NULL if creation failed.
+ */
+FLECS_API
+ecs_http_server_t* ecs_http_server_init(
+    const ecs_http_server_desc_t *desc);
+
+/** Destroy server. 
+ * This operation will stop the server if it was still running.
+ * 
+ * @param server The server to destroy.
+ */
+FLECS_API
+void ecs_http_server_fini(
+    ecs_http_server_t* server);
+
+/** Start server. 
+ * After this operation the server will be able to accept requests.
+ * 
+ * @param server The server to start.
+ * @return Zero if successful, non-zero if failed.
+ */
+FLECS_API
+int ecs_http_server_start(
+    ecs_http_server_t* server);
+
+/** Process server requests. 
+ * This operation invokes the reply callback for each received request. No new
+ * requests will be enqueued while processing requests.
+ * 
+ * @param server The server for which to process requests.
+ */
+FLECS_API
+void ecs_http_server_dequeue(
+    ecs_http_server_t* server,
+    ecs_ftime_t delta_time);
+
+/** Stop server. 
+ * After this operation no new requests can be received.
+ * 
+ * @param server The server.
+ */
+FLECS_API
+void ecs_http_server_stop(
+    ecs_http_server_t* server);
+
+/** Emulate a request.
+ * The request string must be a valid HTTP request. A minimal example:
+ *   GET /entity/flecs/core/World?label=true HTTP/1.1
+ *
+ * @param srv The server.
+ * @param req The request.
+ * @param len The length of the request (optional).
+ * @return The reply.
+ */
+FLECS_API
+int ecs_http_server_http_request(
+    ecs_http_server_t* srv,
+    const char *req,
+    ecs_size_t len,
+    ecs_http_reply_t *reply_out);
+
+/** Convenience wrapper around ecs_http_server_request. */
+FLECS_API
+int ecs_http_server_request(
+    ecs_http_server_t* srv,
+    const char *method,
+    const char *req,
+    ecs_http_reply_t *reply_out);
+
+/** Get context provided in ecs_http_server_desc_t */
+FLECS_API
+void* ecs_http_server_ctx(
+    ecs_http_server_t* srv);
+
+/** Find header in request. 
+ * 
+ * @param req The request.
+ * @param name name of the header to find
+ * @return The header value, or NULL if not found.
+*/
+FLECS_API
+const char* ecs_http_get_header(
+    const ecs_http_request_t* req,
+    const char* name);
+
+/** Find query parameter in request. 
+ * 
+ * @param req The request.
+ * @param name The parameter name.
+ * @return The decoded parameter value, or NULL if not found.
+ */
+FLECS_API
+const char* ecs_http_get_param(
+    const ecs_http_request_t* req,
+    const char* name);
+
+#ifdef __cplusplus
+}
+#endif
+
+/** @} */
+
+#endif // FLECS_HTTP_H
+
+#endif // FLECS_HTTP
+
+#endif
 #ifdef FLECS_REST
 #ifdef FLECS_NO_REST
 #error "FLECS_NO_REST failed: REST is required by other addons"
@@ -9606,6 +9889,26 @@ extern int64_t ecs_rest_delete_error_count;
 extern int64_t ecs_rest_world_stats_count;
 extern int64_t ecs_rest_pipeline_stats_count;
 extern int64_t ecs_rest_stats_error_count;
+
+/** Create HTTP server for REST API. 
+ * This allows for the creation of a REST server that can be managed by the
+ * application without using Flecs systems.
+ * 
+ * @param world The world.
+ * @param desc The HTTP server descriptor.
+ * @return The HTTP server, or NULL if failed.
+ */
+FLECS_API
+ecs_http_server_t* ecs_rest_server_init(
+    ecs_world_t *world,
+    const ecs_http_server_desc_t *desc);
+
+/** Cleanup REST HTTP server. 
+ * The server must have been created with ecs_rest_server_init.
+ */
+FLECS_API
+void ecs_rest_server_fini(
+    ecs_http_server_t *srv);
 
 /* Module import */
 FLECS_API
@@ -12865,6 +13168,7 @@ char* ecs_astresc(
 typedef struct ecs_expr_var_t {
     char *name;
     ecs_value_t value;
+    bool owned; /* Set to false if ecs_vars_t should not take ownership of var */
 } ecs_expr_var_t;
 
 typedef struct ecs_expr_var_scope_t {
@@ -13201,50 +13505,31 @@ int ecs_meta_from_desc(
 #endif
 /**
  * @file addons/plecs.h
- * @brief Plecs addon.
- *
- * Plecs is a small data definition language for instantiating entities that
- * reuses the existing flecs query parser. The following examples illustrate
- * how a plecs snippet translates to regular flecs operations:
- *
- * Plecs:
- *   Entity
- * C code:
- *   ecs_entity_t Entity = ecs_set_name(world, 0, "Entity");
- *
- * Plecs:
- *   Position(Entity)
- * C code:
- *   ecs_entity_t Position = ecs_set_name(world, 0, "Position"); 
- *   ecs_entity_t Entity = ecs_set_name(world, 0, "Entity");
- *   ecs_add_id(world, Entity, Position);
- *
- * Plecs:
- *   Likes(Entity, Apples)
- * C code:
- *   ecs_entity_t Likes = ecs_set_name(world, 0, "Likes"); 
- *   ecs_entity_t Apples = ecs_set_name(world, 0, "Apples"); 
- *   ecs_entity_t Entity = ecs_set_name(world, 0, "Entity");
- *   ecs_add_pair(world, Entity, Likes, Apples);
- *
- * A plecs string may contain multiple statements, separated by a newline:
- *   Likes(Entity, Apples)
- *   Likes(Entity, Pears)
- *   Likes(Entity, Bananas)
+ * @brief Flecs script module.
+ * 
+ * For script, see examples/plecs.
  */
 
 #ifdef FLECS_PLECS
 
 /**
- * @defgroup c_addons_plecs Plecs
+ * @defgroup c_addons_plecs Flecs script
  * @brief Data definition format for loading entity data.
  * 
  * \ingroup c_addons
  * @{
  */
 
+#ifndef FLECS_MODULE
+#define FLECS_MODULE
+#endif
+
 #ifndef FLECS_PARSER
 #define FLECS_PARSER
+#endif
+
+#ifndef FLECS_EXPR
+#define FLECS_EXPR
 #endif
 
 #ifndef FLECS_PLECS_H
@@ -13253,6 +13538,17 @@ int ecs_meta_from_desc(
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+FLECS_API
+extern ECS_COMPONENT_DECLARE(EcsScript);
+
+/* Script component */
+typedef struct EcsScript {
+    ecs_vec_t using_;
+    char *script;
+    ecs_vec_t prop_defaults;
+    ecs_world_t *world;
+} EcsScript;
 
 /** Parse plecs string.
  * This parses a plecs string and instantiates the entities in the world.
@@ -13281,6 +13577,64 @@ FLECS_API
 int ecs_plecs_from_file(
     ecs_world_t *world,
     const char *filename);
+
+/** Used with ecs_script_init */
+typedef struct ecs_script_desc_t {
+    ecs_entity_t entity;      /* Set to customize entity handle associated with script */
+    const char *filename;     /* Set to load script from file */
+    const char *str;          /* Set to parse script from string */
+} ecs_script_desc_t;
+
+/** Load managed script.
+ * A managed script tracks which entities it creates, and keeps those entities
+ * synchronized when the contents of the script are updated. When the script is
+ * updated, entities that are no longer in the new version will be deleted.
+ * 
+ * This feature is experimental.
+ * 
+ * @param world The world.
+ * @param desc Script descriptor.
+ */
+FLECS_API
+ecs_entity_t ecs_script_init(
+    ecs_world_t *world,
+    const ecs_script_desc_t *desc);
+
+#define ecs_script(world, ...)\
+    ecs_script_init(world, &(ecs_script_desc_t) __VA_ARGS__)
+
+/** Update script with new code. 
+ * 
+ * @param world The world.
+ * @param script The script entity.
+ * @param instance An assembly instance (optional).
+ * @param str The script code.
+ * @param vars Optional preset variables for script parameterization.
+ */
+FLECS_API
+int ecs_script_update(
+    ecs_world_t *world,
+    ecs_entity_t script,
+    ecs_entity_t instance,
+    const char *str,
+    ecs_vars_t *vars);
+
+/** Clear all entities associated with script.
+ *
+ * @param world The world.
+ * @param script The script entity.
+ * @param instance The script instance.
+ */
+FLECS_API
+void ecs_script_clear(
+    ecs_world_t *world,
+    ecs_entity_t script,
+    ecs_entity_t instance);
+
+/* Module import */
+FLECS_API
+void FlecsScriptImport(
+    ecs_world_t *world);
 
 #ifdef __cplusplus
 }
@@ -13777,222 +14131,6 @@ char* ecs_parse_term(
 #endif // FLECS_PARSER
 
 #endif
-#ifdef FLECS_HTTP
-#ifdef FLECS_NO_HTTP
-#error "FLECS_NO_HTTP failed: HTTP is required by other addons"
-#endif
-/**
- * @file addons/http.h
- * @brief HTTP addon.
- * 
- * Minimalistic HTTP server that can receive and reply to simple HTTP requests.
- * The main goal of this addon is to enable remotely connecting to a running
- * Flecs application (for example, with a web-based UI) and request/visualize
- * data from the ECS world.
- * 
- * Each server instance creates a single thread used for receiving requests.
- * Receiving requests are enqueued and handled when the application calls
- * ecs_http_server_dequeue. This increases latency of request handling vs.
- * responding directly in the receive thread, but is better suited for 
- * retrieving data from ECS applications, as requests can be processed by an ECS
- * system without having to lock the world.
- * 
- * This server is intended to be used in a development environment.
- */
-
-#ifdef FLECS_HTTP
-
-/**
- * @defgroup c_addons_http Http
- * @brief Simple HTTP server used for serving up REST API.
- * 
- * \ingroup c_addons
- * @{
- */
-
-#if !defined(FLECS_OS_API_IMPL) && !defined(FLECS_NO_OS_API_IMPL)
-#define FLECS_OS_API_IMPL
-#endif
-
-#ifndef FLECS_HTTP_H
-#define FLECS_HTTP_H
-
-/* Maximum number of headers in request */
-#define ECS_HTTP_HEADER_COUNT_MAX (32)
-
-/* Maximum number of query parameters in request */
-#define ECS_HTTP_QUERY_PARAM_COUNT_MAX (32)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/** HTTP server */
-typedef struct ecs_http_server_t ecs_http_server_t;
-
-/** A connection manages communication with the remote host */
-typedef struct {
-    uint64_t id;
-    ecs_http_server_t *server;
-
-    char host[128];
-    char port[16];
-} ecs_http_connection_t;
-
-/** Helper type used for headers & URL query parameters */
-typedef struct {
-    const char *key;
-    const char *value;
-} ecs_http_key_value_t;
-
-/** Supported request methods */
-typedef enum {
-    EcsHttpGet,
-    EcsHttpPost,
-    EcsHttpPut,
-    EcsHttpDelete,
-    EcsHttpOptions,
-    EcsHttpMethodUnsupported
-} ecs_http_method_t;
-
-/** A request */
-typedef struct {
-    uint64_t id;
-
-    ecs_http_method_t method;
-    char *path;
-    char *body;
-    ecs_http_key_value_t headers[ECS_HTTP_HEADER_COUNT_MAX];
-    ecs_http_key_value_t params[ECS_HTTP_HEADER_COUNT_MAX];
-    int32_t header_count;
-    int32_t param_count;
-
-    ecs_http_connection_t *conn;
-} ecs_http_request_t;
-
-/** A reply */
-typedef struct {
-    int code;                   /**< default = 200 */
-    ecs_strbuf_t body;          /**< default = "" */
-    const char* status;         /**< default = OK */
-    const char* content_type;   /**< default = application/json */
-    ecs_strbuf_t headers;       /**< default = "" */
-} ecs_http_reply_t;
-
-#define ECS_HTTP_REPLY_INIT \
-    (ecs_http_reply_t){200, ECS_STRBUF_INIT, "OK", "application/json", ECS_STRBUF_INIT}
-
-/* Global statistics. */
-extern int64_t ecs_http_request_received_count;
-extern int64_t ecs_http_request_invalid_count;
-extern int64_t ecs_http_request_handled_ok_count;
-extern int64_t ecs_http_request_handled_error_count;
-extern int64_t ecs_http_request_not_handled_count;
-extern int64_t ecs_http_request_preflight_count;
-extern int64_t ecs_http_send_ok_count;
-extern int64_t ecs_http_send_error_count;
-extern int64_t ecs_http_busy_count;
-
-/** Request callback.
- * Invoked for each valid request. The function should populate the reply and
- * return true. When the function returns false, the server will reply with a 
- * 404 (Not found) code. */
-typedef bool (*ecs_http_reply_action_t)(
-    const ecs_http_request_t* request, 
-    ecs_http_reply_t *reply,
-    void *ctx);
-
-/** Used with ecs_http_server_init. */
-typedef struct {
-    ecs_http_reply_action_t callback; /**< Function called for each request  */
-    void *ctx;                        /**< Passed to callback (optional) */
-    uint16_t port;                    /**< HTTP port */
-    const char *ipaddr;               /**< Interface to listen on (optional) */
-    int32_t send_queue_wait_ms;       /**< Send queue wait time when empty */
-} ecs_http_server_desc_t;
-
-/** Create server. 
- * Use ecs_http_server_start to start receiving requests.
- * 
- * @param desc Server configuration parameters.
- * @return The new server, or NULL if creation failed.
- */
-FLECS_API
-ecs_http_server_t* ecs_http_server_init(
-    const ecs_http_server_desc_t *desc);
-
-/** Destroy server. 
- * This operation will stop the server if it was still running.
- * 
- * @param server The server to destroy.
- */
-FLECS_API
-void ecs_http_server_fini(
-    ecs_http_server_t* server);
-
-/** Start server. 
- * After this operation the server will be able to accept requests.
- * 
- * @param server The server to start.
- * @return Zero if successful, non-zero if failed.
- */
-FLECS_API
-int ecs_http_server_start(
-    ecs_http_server_t* server);
-
-/** Process server requests. 
- * This operation invokes the reply callback for each received request. No new
- * requests will be enqueued while processing requests.
- * 
- * @param server The server for which to process requests.
- */
-FLECS_API
-void ecs_http_server_dequeue(
-    ecs_http_server_t* server,
-    ecs_ftime_t delta_time);
-
-/** Stop server. 
- * After this operation no new requests can be received.
- * 
- * @param server The server.
- */
-FLECS_API
-void ecs_http_server_stop(
-    ecs_http_server_t* server);
-
-/** Find header in request. 
- * 
- * @param req The request.
- * @param name name of the header to find
- * @return The header value, or NULL if not found.
-*/
-FLECS_API
-const char* ecs_http_get_header(
-    const ecs_http_request_t* req,
-    const char* name);
-
-/** Find query parameter in request. 
- * 
- * @param req The request.
- * @param name The parameter name.
- * @return The decoded parameter value, or NULL if not found.
- */
-FLECS_API
-const char* ecs_http_get_param(
-    const ecs_http_request_t* req,
-    const char* name);
-
-#ifdef __cplusplus
-}
-#endif
-
-/** @} */
-
-#endif // FLECS_HTTP_H
-
-#endif // FLECS_HTTP
-
-#endif
 #ifdef FLECS_OS_API_IMPL
 #ifdef FLECS_NO_OS_API_IMPL
 #error "FLECS_NO_OS_API_IMPL failed: OS_API_IMPL is required by other addons"
@@ -14472,6 +14610,14 @@ static const flecs::entity_t OnDeleteTarget = EcsOnDeleteTarget;
 static const flecs::entity_t Remove = EcsRemove;
 static const flecs::entity_t Delete = EcsDelete;
 static const flecs::entity_t Panic = EcsPanic;
+
+/* Misc */
+static const flecs::entity_t EcsDefaultChildComponent = EcsDefaultChildComponent;
+
+/* Builtin predicates for comparing entity ids in queries. Only supported by rules */
+static const flecs::entity_t PredEq = EcsPredEq;
+static const flecs::entity_t PredMatch = EcsPredMatch;
+static const flecs::entity_t PredLookup = EcsPredLookup;
 
 /** @} */
 
@@ -16987,6 +17133,10 @@ namespace log {
 /** Set log level */
 inline void set_level(int level) {
     ecs_log_set_level(level);
+}
+
+inline int get_level(void) {
+    return ecs_log_get_level();
 }
 
 /** Enable colors in logging */
@@ -21443,6 +21593,13 @@ struct entity_builder : entity_view {
         return to_base();
     }
 
+    /* Set entity alias.
+     */
+    Self& set_alias(const char *name) {
+        ecs_set_alias(this->m_world, this->m_id, name);
+        return to_base();
+    }
+
 #   ifdef FLECS_DOC
 /**
  * @file addons/cpp/mixins/doc/entity_builder.inl
@@ -24546,6 +24703,13 @@ struct term_id_builder_i {
         return *this;
     }
 
+    /* Override term id flags */
+    Base& flags(flecs::flags32_t flags) {
+        this->assert_term_id();
+        m_term_id->flags = flags;
+        return *this;
+    }
+
     ecs_term_id_t *m_term_id;
     
 protected:
@@ -25115,6 +25279,11 @@ struct filter_builder_i : term_builder_i<Base> {
 
     Base& instanced() {
         m_desc->instanced = true;
+        return *this;
+    }
+
+    Base& filter_flags(ecs_flags32_t flags) {
+        m_desc->flags |= flags;
         return *this;
     }
 
@@ -27270,14 +27439,13 @@ struct rule_base {
         : m_world(world)
     {
         m_rule = ecs_rule_init(world, desc);
-
-        if (!m_rule) {
-            ecs_abort(ECS_INVALID_PARAMETER, NULL);
-        }
-
         if (desc->terms_buffer) {
             ecs_os_free(desc->terms_buffer);
         }
+    }
+
+    bool is_valid() const {
+        return m_rule != nullptr;
     }
 
     operator rule_t*() const {
@@ -27288,12 +27456,22 @@ struct rule_base {
         return flecs::entity(m_world, ecs_get_entity(m_rule));
     }
 
-    /** Free the rule.
-     */
+    /** Free the rule. */
     void destruct() {
-        ecs_rule_fini(m_rule);
-        m_world = nullptr;
-        m_rule = nullptr;
+        if (m_rule) {
+            ecs_rule_fini(m_rule);
+            m_world = nullptr;
+            m_rule = nullptr;
+        }
+    }
+
+    /** Move the rule. */
+    void move(flecs::rule_base&& obj) {
+        this->destruct();
+        this->m_world = obj.m_world;
+        this->m_rule = obj.m_rule;
+        obj.m_world = nullptr;
+        obj.m_rule = nullptr;
     }
 
     flecs::string str() {

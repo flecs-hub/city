@@ -5,7 +5,6 @@ using flecs.components.transform
 Module flecs.city {
 
 with Prefab {
-
   const far_draw_distance = 256
   const near_draw_distance = 96
 
@@ -188,8 +187,8 @@ with Prefab {
 
   // Lantern
   LanternLight {
-    - Rgb {1.0, 0.7, 0.3}
-    - Emissive {2.5}
+    - Rgb {1.2, 1.0, 0.5}
+    - Emissive {1.0}
   }
 
   Lantern {

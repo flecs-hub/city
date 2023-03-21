@@ -184,6 +184,15 @@ void FlecsSystemsPhysicsImport(
     ecs_system(world, { .entity = EcsMove2, .query.filter.instanced = true });
     ecs_system(world, { .entity = EcsMove3, .query.filter.instanced = true });
     ecs_system(world, { .entity = EcsRotate3, .query.filter.instanced = true });
+
+    ecs_add_pair(world, ecs_id(EcsVelocity2), 
+        EcsWith, ecs_id(EcsPosition2));
+    ecs_add_pair(world, ecs_id(EcsVelocity3), 
+        EcsWith, ecs_id(EcsPosition3));
+    ecs_add_pair(world, ecs_id(EcsRotation3), 
+        EcsWith, ecs_id(EcsPosition3));
+    ecs_add_pair(world, ecs_id(EcsAngularVelocity), 
+        EcsWith, ecs_id(EcsRotation3));
 }
 
 
@@ -733,9 +742,6 @@ int cube_dump(
     vec3 c;
     glm_vec3_copy(center, c);
 
-    static int indent = 0;
-    indent ++;
-
     size /= 2;
     int i, count = 0;
     for (i = 0; i < 8; i ++) {
@@ -745,7 +751,6 @@ int cube_dump(
             count += cube_dump(cube->nodes[i], child_center, size);
         }
     }
-    indent --;
 
     return ecs_vec_count(&cube->entities) + count;
 }

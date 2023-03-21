@@ -1,32 +1,33 @@
 <html>
   <head>
-    <title>Flecs City</title>
+    <title>Flecs city</title>
     <link rel="icon" href="img/flecs_logo.png" />
   </head>
   <body style="background-color: #101115; color: #DDE0E6;">  
     <!-- Create the canvas that the C++ code will draw into -->
     <span style="font-family: Arial, Helvetica, sans-serif;">
-      <b>Source:</b>
-      <a style="color: #A2D8B4;" 
+      [ <a style="color: #A2D8B4;" 
         href="https://github.com/flecs-hub/city" 
         target="_blank">
-        https://github.com/flecs-hub/city
-      </a>
+        Source
+      </a> ]
+      [ <a style="color: #A2D8B4;" 
+        href="https://www.flecs.dev/explorer/?wasm=https://flecs-hub.github.io/city/etc/city.js" 
+        target="_blank">
+        Open in Explorer
+      </a> ]
+      &nbsp;-&nbsp;
+      Use WASD + QE to move camera, arrow keys to look around
     </span>
 
     <canvas id="canvas" 
       style="width: 100%; height: 100%;">
     </canvas>
 
-    <!-- Allow the C++ to access the canvas element --> 
-    <script type='text/javascript'>
-        var canv = document.getElementById('canvas');
-        var playground = {
-            canvas: canv
-        };
-    </script>
-
     <script src="city.js"></script>
-    <script src="city_import.js"></script>
+
+    <script type='text/javascript'>
+      city();
+    </script>
   </body>
 </html>

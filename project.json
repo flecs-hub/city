@@ -14,5 +14,11 @@
             "flecs.game"
         ],
         "standalone": true
+    },
+    "lang.c": {
+        "${target em}": {
+            "ldflags": ["-sSTACK_SIZE=1000000"],
+            "embed": ["etc/assets"]
+        }
     }
 }
