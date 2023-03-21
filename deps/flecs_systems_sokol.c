@@ -29153,6 +29153,7 @@ typedef struct sokol_resources_t {
     sg_buffer box_normals;
 
     sg_image noise_texture;
+    sg_image bg_texture;
 } sokol_resources_t;
 
 typedef struct sokol_global_uniforms_t {
@@ -29256,6 +29257,8 @@ sg_image sokol_target(
     sg_pixel_format format);
 
 sg_image sokol_noise_texture(int32_t width, int32_t height);
+
+sg_image sokol_bg_texture(ecs_rgb_t color, int32_t width, int32_t height);
 
 sg_buffer sokol_buffer_quad(void);
 
@@ -30384,10 +30387,16 @@ SokolFx sokol_init_ssao(
     fx.width = width;
     fx.height = height;
 
+#ifdef __EMSCRIPTEN__
+    float factor = 2;
+#else
+    float factor = 0.5;
+#endif
+
     // Ambient occlusion shader 
     int32_t ao = sokol_fx_add_pass(&fx, &(sokol_fx_pass_desc_t){
         .name = "ssao",
-        .outputs = {{ .global_size = true, .factor = 0.5 }},
+        .outputs = {{ .global_size = true, .factor = factor }},
         .shader_header = shd_ssao_header,
         .shader = shd_ssao,
         .color_format = SG_PIXELFORMAT_RGBA8,
@@ -31518,7 +31527,7 @@ sokol_offscreen_pass_t sokol_init_scene_pass(
     *depth_pass_out = sokol_init_depth_pass(w, h, 
         pass.depth_target, sample_count);
 
-    pass.pass_action = sokol_clear_action(background_color, true, false);
+    pass.pass_action = sokol_clear_action(background_color, false, false);
     pass.pip = init_scene_pipeline(sample_count);
     pass.pip_2 = init_scene_atmos_sun_pipeline(sample_count);
     pass.sample_count = sample_count;
@@ -31617,11 +31626,9 @@ void sokol_run_scene_pass(
     sg_begin_pass(pass->pass, &pass->pass_action);
 
     /* Step 1: render atmosphere background */
-    if (state->atmosphere) {
-        sg_apply_pipeline(pass->pip_2);
-        sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, &(sg_range){&fs_sun_atmos_u, sizeof(scene_fs_sun_atmos_uniforms_t)});
-        scene_draw_atmos(state);
-    }
+    sg_apply_pipeline(pass->pip_2);
+    sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, &(sg_range){&fs_sun_atmos_u, sizeof(scene_fs_sun_atmos_uniforms_t)});
+    scene_draw_atmos(state);
 
     /* Step 2: render scene */
     sg_apply_pipeline(pass->pip);
@@ -31975,6 +31982,39 @@ sg_image sokol_noise_texture(
         .data.subimage[0][0] = {
             .ptr = data,
             .size = width * height * sizeof(char)
+        }
+    });
+
+    ecs_os_free(data);
+
+    return img;
+}
+
+sg_image sokol_bg_texture(ecs_rgb_t color, int32_t width, int32_t height)
+{
+    uint32_t data[width][height];
+
+    for (int32_t x = 0; x < width; x ++) {
+        for (int32_t y = 0; y < height; y ++) {
+            uint32_t c = (uint32_t)(color.r * 256);
+            c += (uint32_t)(color.g * 256) << 8;
+            c += (uint32_t)(color.b * 256) << 16;
+            c += 255 << 24;
+            data[x][y] = c;
+            
+        }
+    }
+
+    sg_image img = sg_make_image(&(sg_image_desc){
+        .width = width,
+        .height = height,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+        .label = "Background texture",
+        .data.subimage[0][0] = {
+            .ptr = data,
+            .size = width * height * 4
         }
     });
 
@@ -32366,6 +32406,8 @@ void SokolRender(ecs_iter_t *it) {
     if (state.atmosphere) {
         sokol_run_atmos_pass(&r->atmos_pass, &state);
         state.atmos = r->atmos_pass.color_target;
+    } else {
+        state.atmos = r->resources.bg_texture;
     }
 
     /* Render scene */
@@ -32421,6 +32463,8 @@ void SokolInitRenderer(ecs_iter_t *it) {
     ecs_trace("sokol: library initialized");
 
     sokol_resources_t resources = sokol_init_resources();
+    resources.bg_texture = sokol_bg_texture(canvas->background_color, 2, 2);
+
     sokol_offscreen_pass_t depth_pass;
     sokol_offscreen_pass_t scene_pass = sokol_init_scene_pass(
         canvas->background_color, w, h, 1, &depth_pass);
