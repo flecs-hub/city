@@ -3,7 +3,7 @@ using flecs.city
 using flecs.game
 
 my_city_0 :- City {
-  blocks_x: 20
+  blocks_x: 30
   blocks_y: 20
   block_width: 15
   block_height: 25

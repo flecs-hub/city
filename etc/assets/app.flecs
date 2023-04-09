@@ -7,13 +7,13 @@ light {
 }
 
 $ :- TimeOfDay {
-  t: 0.14
+  t: 0.05
   speed: 0.0005
 }
 
 camera {
   - CameraController
-  - Position3 {-75, 18.0, -300}
+  - Position3 {-81, 0.0, -300}
   - Rotation3 {-0.15}
   - Camera {
       fov: 20
@@ -31,6 +31,6 @@ canvas {
       ambient_light: {0.03, 0.06, 0.09}
       directional_light: light
       camera: camera
-      fog_density: 3
+      fog_density: 10
   }
 }

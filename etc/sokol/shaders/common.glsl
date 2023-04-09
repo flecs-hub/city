@@ -35,3 +35,15 @@ highp float rand( const in vec2 uv ) {
     highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
     return fract( sin( sn ) * c );
 }
+
+float getViewZ(const in float near, const in float far, const in float depth) {
+    return (near * far) / (depth - far);
+}
+
+// Compute position in world space from depth & projection matrix
+vec3 getViewPosition( const in vec2 screenPosition, const in float depth, const in float viewZ, const in mat4 mat_p, const in mat4 inv_mat_p ) {
+    float clipW = mat_p[2][3] * viewZ + mat_p[3][3];
+    vec4 clipPosition = vec4( ( vec3( screenPosition, depth ) - 0.5 ) * 2.0, 1.0 );
+    clipPosition *= clipW; // unprojection.
+    return ( inv_mat_p * clipPosition ).xyz;
+}

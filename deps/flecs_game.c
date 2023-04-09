@@ -320,7 +320,7 @@ void FindWorldCell(ecs_iter_t *it) {
             continue;
         }
 
-        ecs_query_populate(it);
+        ecs_query_populate(it, false);
 
         EcsPosition3 *pos = ecs_field(it, EcsPosition3, 1);
         WorldCellCache *wcache = ecs_field(it, WorldCellCache, 2);
@@ -338,7 +338,7 @@ void SetWorldCell(ecs_iter_t *it) {
             continue;
         }
 
-        ecs_query_populate(it);
+        ecs_query_populate(it, false);
 
         ecs_world_t *world = it->world;
         WorldCellCache *wcache = ecs_field(it, WorldCellCache, 1);
@@ -362,7 +362,7 @@ void ResetWorldCellCache(ecs_iter_t *it) {
             continue;
         }
 
-        ecs_query_populate(it);
+        ecs_query_populate(it, false);
 
         WorldCellCache *wcache = ecs_field(it, WorldCellCache, 1);
         bool changed = false;
@@ -383,7 +383,6 @@ void ResetWorldCellCache(ecs_iter_t *it) {
 }
 
 void FlecsGameWorldCellsImport(ecs_world_t *world) {
-
     ECS_COMPONENT_DEFINE(world, WorldCellCache);
     ECS_COMPONENT_DEFINE(world, WorldCells);
     ECS_ENTITY_DEFINE(world, EcsWorldCell, Tag, Exclusive);
@@ -401,7 +400,8 @@ void FlecsGameWorldCellsImport(ecs_world_t *world) {
         [none] flecs.components.transform.Position3(self),
         [out]  !flecs.game.WorldCellCache(self),
         [out]  !flecs.game.WorldCell(self),
-        [none] !flecs.components.transform.Position3(up(ChildOf)));
+        [none] !flecs.components.transform.Position3(up(ChildOf)),
+        [none] !(Target, ChildOf));
 
     ecs_system(world, {
         .entity = ecs_entity(world, {
@@ -540,7 +540,7 @@ void LightControllerTimeOfDay(ecs_iter_t *it) {
     EcsRgb *color = ecs_field(it, EcsRgb, 3);
     EcsLightIntensity *light_intensity = ecs_field(it, EcsLightIntensity, 4);
 
-    static vec3 day = {0.8, 0.8, 0.6};
+    static vec3 day = {0.8, 0.8, 0.75};
     static vec3 twilight = {1.0, 0.1, 0.01};
     float twilight_angle = 0.3;
 

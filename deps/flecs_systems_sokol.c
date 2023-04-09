@@ -29162,6 +29162,7 @@ typedef struct sokol_global_uniforms_t {
     mat4 mat_vp;
     mat4 inv_mat_p;
     mat4 inv_mat_v;
+    mat4 inv_mat_vp;
     
     mat4 light_mat_v;
     mat4 light_mat_vp;
@@ -30414,7 +30415,7 @@ SokolFx sokol_init_ssao(
         .outputs = {{512}},
         .shader_header = shd_blur_hdr,
         .shader = shd_blur,
-        .color_format = SG_PIXELFORMAT_RGBA8,
+        .color_format = SG_PIXELFORMAT_RGBA16F,
         .inputs = { "tex" },
         .params = { "horizontal" },
         .steps = {
@@ -30610,11 +30611,14 @@ typedef struct fx_uniforms_t {
     float near_;
     float far_;
     float target_size[2];
+    vec3 eye_pos;
 } fx_uniforms_t;
 
 typedef struct fx_mat_uniforms_t {
     mat4 mat_p;
     mat4 inv_mat_p;
+    mat4 inv_mat_v;
+    mat4 inv_mat_vp;
 } fx_mat_uniforms_t;
 
 static
@@ -30636,8 +30640,11 @@ char* fx_build_shader(
         "uniform float u_near;\n"
         "uniform float u_far;\n"
         "uniform vec2 u_target_size;\n"
+        "uniform vec3 u_eye_pos;\n"
         "uniform mat4 u_mat_p;\n"
         "uniform mat4 u_inv_mat_p;\n"
+        "uniform mat4 u_inv_mat_v;\n"
+        "uniform mat4 u_inv_mat_vp;\n"
         "uniform sampler2D u_noise;\n");
 
     /* Add inputs */
@@ -30729,14 +30736,17 @@ int sokol_fx_add_pass(
                         [2] = { .name="u_aspect", .type=SG_UNIFORMTYPE_FLOAT },
                         [3] = { .name="u_near", .type=SG_UNIFORMTYPE_FLOAT },
                         [4] = { .name="u_far", .type=SG_UNIFORMTYPE_FLOAT },
-                        [5] = { .name="u_target_size", .type=SG_UNIFORMTYPE_FLOAT2 }
+                        [5] = { .name="u_target_size", .type=SG_UNIFORMTYPE_FLOAT2 },
+                        [6] = { .name="u_eye_pos", .type=SG_UNIFORMTYPE_FLOAT3 }
                     }
                 },
                 [1] = {
                     .size = sizeof(fx_mat_uniforms_t),
                     .uniforms = {
                         [0] = { .name = "u_mat_p", .type = SG_UNIFORMTYPE_MAT4 },
-                        [1] = { .name = "u_inv_mat_p", .type = SG_UNIFORMTYPE_MAT4 }
+                        [1] = { .name = "u_inv_mat_p", .type = SG_UNIFORMTYPE_MAT4 },
+                        [2] = { .name = "u_inv_mat_v", .type = SG_UNIFORMTYPE_MAT4 },
+                        [3] = { .name = "u_inv_mat_vp", .type = SG_UNIFORMTYPE_MAT4 }
                     }
                 },
                 [2] = prog_ub
@@ -30912,6 +30922,8 @@ void fx_draw(
     fx_mat_uniforms_t fs_mat_u;
     glm_mat4_copy(state->uniforms.mat_p, fs_mat_u.mat_p);
     glm_mat4_copy(state->uniforms.inv_mat_p, fs_mat_u.inv_mat_p);
+    glm_mat4_copy(state->uniforms.inv_mat_v, fs_mat_u.inv_mat_v);
+    glm_mat4_copy(state->uniforms.inv_mat_vp, fs_mat_u.inv_mat_vp);
 
     fx_uniforms_t f_u = {
         .t = state->uniforms.t,
@@ -30920,6 +30932,8 @@ void fx_draw(
         .near_ = state->uniforms.near_,
         .far_ = state->uniforms.far_,
     };
+
+    glm_vec3_copy(state->uniforms.eye_pos, f_u.eye_pos);
 
     for (int32_t s = 0; s < step_last; s ++) {
         int8_t step_cur = s % step_count;
@@ -31999,7 +32013,7 @@ sg_image sokol_bg_texture(ecs_rgb_t color, int32_t width, int32_t height)
             uint32_t c = (uint32_t)(color.r * 256);
             c += (uint32_t)(color.g * 256) << 8;
             c += (uint32_t)(color.b * 256) << 16;
-            c += 255 << 24;
+            c += 255u << 24;
             data[x][y] = c;
             
         }
@@ -32286,6 +32300,7 @@ void sokol_init_global_uniforms(
 
     glm_mat4_mul(u->mat_p, u->mat_v, u->mat_vp);
     glm_mat4_inv(u->mat_v, u->inv_mat_v);
+    glm_mat4_inv(u->mat_vp, u->inv_mat_vp);
 
     /* Light parameters */
     if (state->light) {
@@ -32309,8 +32324,8 @@ void sokol_init_global_uniforms(
     /* Shadow parameters */
     float shadow_far = u->far_ > 128 ? 128 : u->far_;
     u->shadow_map_size = SOKOL_SHADOW_MAP_SIZE;
-    u->shadow_near = -8 + u->eye_pos[1];
-    u->shadow_far = shadow_far + (u->eye_pos[1] * 3);
+    u->shadow_near = -(8 + u->eye_pos[1]);
+    u->shadow_far = shadow_far;
 
     /* Calculate light position in screen space */
     vec3 sun_pos;
@@ -33191,7 +33206,10 @@ void sokol_update_group(
             // Apply geometry-specific scaling to transform matrix
             geometry->populate(&page->transforms[pstart], geometry_data, 
                 to_copy, geometry_self);
-            geometry_data = ECS_OFFSET(geometry_data, geometry_size * to_copy);
+
+            if (geometry_self) {
+                geometry_data = ECS_OFFSET(geometry_data, geometry_size * to_copy);
+            }
 
             remaining -= to_copy;
             page->count += to_copy;

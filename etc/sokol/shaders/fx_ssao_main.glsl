@@ -3,8 +3,8 @@ float centerDepth = getDepth( uv );
 
 // Depth (range = 0 .. 1)
 float centerDepthNorm = centerDepth / u_far;
-float centerViewZ = getViewZ( centerDepth );
-vec3 viewPosition = getViewPosition( uv, centerDepthNorm, centerViewZ );
+float centerViewZ = getViewZ( u_near, u_far, centerDepth );
+vec3 viewPosition = getViewPosition( uv, centerDepthNorm, centerViewZ, u_mat_p, u_inv_mat_p );
 float ambientOcclusion = getAmbientOcclusion( viewPosition, centerDepth );
 
 // Store value as rgba to increase precision

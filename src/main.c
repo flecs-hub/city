@@ -3,25 +3,17 @@
 int main(int argc, char *argv[]) {    
     ecs_world_t *world = ecs_init();
 
-    // ECS_IMPORT(world, FlecsCity);
-    // ECS_IMPORT(world, FlecsGame);
-    // ECS_IMPORT(world, FlecsComponentsTransform);
-    // ECS_IMPORT(world, FlecsComponentsGeometry);
-    // ECS_IMPORT(world, FlecsComponentsGui);
-    // ECS_IMPORT(world, FlecsComponentsGraphics);
-    // ECS_IMPORT(world, FlecsSystemsSokol);
-
-
-    ECS_IMPORT(world, FlecsCity);
     ECS_IMPORT(world, FlecsUnits);
     ECS_IMPORT(world, FlecsScript);
-    ECS_IMPORT(world, FlecsGame);
     ECS_IMPORT(world, FlecsComponentsTransform);
     ECS_IMPORT(world, FlecsComponentsGeometry);
     ECS_IMPORT(world, FlecsComponentsGui);
     ECS_IMPORT(world, FlecsComponentsGraphics);
+    ECS_IMPORT(world, FlecsSystemsTransform);
     ECS_IMPORT(world, FlecsSystemsSokol);
     ECS_IMPORT(world, FlecsMonitor);
+    ECS_IMPORT(world, FlecsGame);
+    ECS_IMPORT(world, FlecsCity);
 
     ecs_plecs_from_file(world, "etc/assets/app.flecs");
 
