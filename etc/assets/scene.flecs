@@ -22,19 +22,19 @@ my_city_0 :- City {
   }
 
   parks: {
-    chance: 0.2,
+    chance: 0.25,
     tree_chance: 1.0
     plaza_chance: 0.1
     tree_count: 4
   }
 
   props: {
-    chance: 1.0
+    chance: 1
     tree_chance: 0.5
     bin_chance: 0.09
     hydrant_chance: 0.03
     bench_chance: 0.08
   }
 
-  lanterns: true
+  lanterns: false
 }
