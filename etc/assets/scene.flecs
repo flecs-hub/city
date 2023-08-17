@@ -36,5 +36,5 @@ my_city_0 :- City {
     bench_chance: 0.08
   }
 
-  lanterns: false
+  lanterns: true
 }
