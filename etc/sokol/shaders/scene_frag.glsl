@@ -8,6 +8,7 @@ uniform float u_shadow_map_size;
 uniform sampler2D shadow_map;
 uniform float u_shadow_far;
 
+
 in vec4 position;
 in vec4 light_position;
 in vec3 normal;

@@ -63,6 +63,7 @@ ECS_STRUCT(EcsCanvas, {
     EcsRgb background_color;
     EcsRgb ambient_light;
     float fog_density;
+    float fog_falloff;
 });
 
 #ifdef __cplusplus

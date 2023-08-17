@@ -10,6 +10,7 @@
             "flecs.components.physics",
             "flecs.components.gui",
             "flecs.systems.physics",
+            "flecs.systems.transform",
             "flecs.systems.sokol",
             "flecs.game"
         ],
