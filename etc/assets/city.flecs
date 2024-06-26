@@ -1,297 +1,292 @@
-using flecs.components.graphics
-using flecs.components.geometry
-using flecs.components.transform
+module flecs.city
+using flecs.components.*
+using flecs.meta
+using flecs.game
 
-Module flecs.city {
+prefab Tree {
+  const ground_height = 0.3
+  const ground_width = 1.0
+  const trunk_height = 2.0
+  const trunk_width = 0.5
+  const canopy_height = 2.0
+  const canopy_width = 1.5
 
-with Prefab {
-  const far_draw_distance = 256
-  const near_draw_distance = 96
-
-  // Tree prefab
-  Tree {
-    const ground_height = 0.3
-    const ground_width = 1.0
-    const trunk_height = 2.0
-    const trunk_width = 0.5
-    const canopy_height = 2.0
-    const canopy_width = 1.5
-
-    - DrawDistance { far_: $far_draw_distance }
-
-    Ground {
-      - Position3 {0, ($ground_height / 2), 0}
-      - Box {$ground_width, $ground_height, $ground_width}
-      - Rgb {0.05, 0.05, 0.05}
-    }
-    Trunk {
-      - Position3 {0, ($trunk_height / 2), 0}
-      - Box {$trunk_width, $trunk_height, $trunk_width}
-      - Rgb {0.25, 0.2, 0.1}
-    }
-    Canopy {
-      const canopy_y = $trunk_height + ($canopy_height / 2)
-      const canopy_top_width = $canopy_width - 0.5
-
-      _ {
-        - Position3 {0, $canopy_y, 0}
-        - Box {$canopy_width, $canopy_height, $canopy_width}
-        - Rgb {0.2, 0.3, 0.15}
-      }
-      _ {
-        - Position3 {0, $canopy_y, 0}
-        - Box {$canopy_top_width, $canopy_height + 1, $canopy_top_width}
-        - Rgb {0.2, 0.3, 0.15}
-      }
-    }
+  Ground {
+    Position3: {0, ($ground_height / 2), 0}
+    Box: {$ground_width, $ground_height, $ground_width}
+    Rgb: {0.05, 0.05, 0.05}
   }
-
-  // Tree, but enclosed in pavement
-  SidewalkTree : Tree {
-    GroundEnclosing {
-      - Position3 {0, 0.05, 0}
-      - Box {1.3, 0.2, 1.3}
-      - Rgb {0.3, 0.3, 0.3}
-    }
+  Trunk {
+    Position3: {0, ($trunk_height / 2), 0}
+    Box: {$trunk_width, $trunk_height, $trunk_width}
+    Rgb: {0.25, 0.2, 0.1}
   }
+  Canopy {
+    const canopy_y = $trunk_height + ($canopy_height / 2)
+    const canopy_top_width = $canopy_width - 0.5
 
-  // Bin prefab
-  BinMaterial {
-    - Rgb {0.04, 0.045, 0.04}
-    - Specular {specular_power: 0.5, shininess: 0.8}
-  }
-
-  Bin {
-    const bin_height = 0.8
-    const frame_height = 0.2
-
-    - DrawDistance { far_: $near_draw_distance }
-
-    BinFrame : BinMaterial {
-      - Box {0.07, $frame_height, 0.07}
+    _ {
+      Position3: {0, $canopy_y, 0}
+      Box: {$canopy_width, $canopy_height, $canopy_width}
+      Rgb: {0.2, 0.3, 0.15}
     }
-
-    Base : BinMaterial {
-      - Position3 {0, $bin_height / 2, 0}
-      - Box {0.5, $bin_height, 0.5}
+    _ {
+      Position3: {0, $canopy_y, 0}
+      Box: {$canopy_top_width, $canopy_height + 1, $canopy_top_width}
+      Rgb: {0.2, 0.3, 0.15}
     }
-    Cover : BinMaterial {
-      - Position3 {0, $bin_height + $frame_height, 0}
-      - Box {0.5, 0.1, 0.5}
-    }
-    Frame {
-      const frame_y = $bin_height + $frame_height / 2
-      const frame_x = 0.15
-
-      _ : BinFrame { - Position3 {-$frame_x, $frame_y, -$frame_x} }
-      _ : BinFrame { - Position3 {$frame_x,  $frame_y, -$frame_x} }
-      _ : BinFrame { - Position3 {-$frame_x, $frame_y, $frame_x } }
-      _ : BinFrame { - Position3 {$frame_x,  $frame_y, $frame_x } }
-    }
-  }
-
-  // Fire hydrant
-  HydrantMaterial {
-    - Rgb {0.5, 0.03, 0.03}
-    - Specular {specular_power: 0.1, shininess: 0.2}
-  }
-
-  Hydrant {
-    const width = 0.15
-    const height = 0.5
-
-    - DrawDistance { far_: $near_draw_distance }
-
-    Base : HydrantMaterial {
-      - Position3 {0, $height / 2, 0}
-      - Box {$width, $height, $width}
-    }
-    Ring : HydrantMaterial {
-      - Position3 {0, $height * 0.8, 0}
-      - Box {$width * 1.3, 0.03, $width * 1.3}
-    }
-    Bar : HydrantMaterial {
-      - Position3 {0, $height * 0.6, 0}
-      - Box {0.3, 0.06, 0.06}
-    }
-    Front : HydrantMaterial {
-      - Position3 {0, $height * 0.6, -0.1}
-      - Box {0.1, 0.1, 0.1}
-    }
-  }
-
-  // Bench
-  BenchMaterial {
-    - Rgb {0.5, 0.4, 0.3}
-  }
-
-  BenchFootMaterial {
-    - Rgb {0.2, 0.2, 0.2}
-    - Specular {specular_power: 0.1, shininess: 0.3}
-  }
-
-  Bench {
-    const base_width = 0.8
-    const height = 0.3
-    const top_height = 0.08
-
-    - DrawDistance { far_: $near_draw_distance }
-
-    BenchFoot : BenchFootMaterial {
-      - Box {0.1, $height, 0.3}
-    }
-
-    LeftFoot : BenchFoot {
-      - Position3 {-$base_width, $height / 2, 0}    
-    }
-    RightFoot : BenchFoot {
-      - Position3 {$base_width, $height / 2, 0}
-    }
-    Top : BenchMaterial {
-      - Position3 {0, $height + $top_height / 2, 0}
-      - Box {2.0, $top_height, 0.5}
-    }
-  }
-
-  // Grass floor for park
-  Park {
-    - Rgb {0.2, 0.3, 0.15}
-  }
-
-  // Plaza
-  Plaza {
-    - Rgb {0.11, 0.11, 0.1}
-    - Specular {specular_power: 0.2, shininess: 1.5}
-  }
-
-  // Building materials
-  Building { 
-  }
-
-  ModernBuilding : Building {
-    - Specular {specular_power: 0.5, shininess: 0.8}
-  }
-
-  // Streets & pavements
-  StreetMaterial {
-    - Rgb {0.15, 0.15, 0.15}
-    - Specular {specular_power: 0.1, shininess: 1.0}
-  }
-
-  Street : StreetMaterial { }
-
-  Pavement {
-    - Rgb {0.3, 0.3, 0.3}
-  }
-
-
-  // Lantern
-  LanternLight {
-    - Rgb {1.2, 1.0, 0.5}
-    - Emissive {1.0}
-  }
-
-  Lantern {
-    const height = 1.75
-    const base_height = 0.1
-    const light_height = 0.5
-    const light_bottom = $height
-    const light_top = $height + $light_height
-    const cap_height = 0.1
-
-    - DrawDistance { far_: $far_draw_distance }
-
-    Base {
-      - Position3 {0, $base_height / 2, 0}
-      - Box {0.5, $base_height, 0.5}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-    BaseCap {
-      - Position3 {0, $base_height + 0.05, 0}
-      - Box {0.3, 0.1, 0.3}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-    Pole {
-      - Position3 {0, $height / 2, 0}
-      - Box {0.15, $height, 0.15}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-    Light : LanternLight {
-      - Position3 {0, $height + ($light_height / 2), 0}
-      - Box {0.45, $light_height, 0.45}
-    }
-    Bottom {
-      - Position3 {0, $light_bottom - 0.05, 0}
-      - Box {0.4, 0.1, 0.4}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-    Cap {
-      - Position3 {0, $light_top + 0.05, 0}
-      - Box {0.4, $cap_height, 0.4}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-    Top {
-      - Position3 {0, $light_top + $cap_height - 0.05, 0}
-      - Box {0.2, 0.1, 0.2}
-      - Rgb {0.03, 0.05, 0.03}
-    }
-  }
-
-  Car {
-    const wheel_size = 0.45
-    const wheel_y = ($wheel_size / 2)
-    const bottom_y = $wheel_size
-    const bottom_height = 0.5
-    const bottom_depth = 3.0
-    const bottom_width = 1.0
-    const wheel_x = ($bottom_width / 2) - 0.1
-    const wheel_z = ($bottom_depth / 2) - 0.5
-    const light_depth = 0.05
-    const light_size = 0.2
-    const light_x = ($bottom_width / 2.3) - ($light_size / 2)
-    const light_z = ($bottom_depth / 2) + ($light_depth / 2)
-
-    BackLight {
-      - Box {$light_size, $light_size, $light_depth}
-      - Rgb {5.0, 0.0, 0.0}
-      - Emissive {1.0}
-    }
-
-    FrontLight {
-      - Box {$light_size, $light_size, $light_depth}
-      - Rgb {2.1, 2.1, 2.0}
-      - Emissive {1.0}
-    }
-
-    Wheel {
-      - Box {0.3, $wheel_size, $wheel_size}
-      - Rgb {0.01, 0.01, 0.01}
-    }
-
-    Top {
-      - Position3 {y: 0.75, z: -0.2}
-      - Rotation3 {x: 0.05}
-      - Box {1.0, 0.5, 2.0}
-      - Rgb {0.005, 0.05, 0.1}
-    }
-  
-    Bottom {
-      - Position3 {y: $bottom_y}
-      - Box {$bottom_width, $bottom_height, $bottom_depth}
-      - Rgb {0.005, 0.05, 0.1}
-    }
-
-    _ : Wheel { - Position3 {x: -$wheel_x,  y: $wheel_y,  z: $wheel_z}  }
-    _ : Wheel { - Position3 {x: $wheel_x,   y: $wheel_y,  z: $wheel_z}  }
-    _ : Wheel { - Position3 {x: -$wheel_x,  y: $wheel_y,  z: -$wheel_z} }
-    _ : Wheel { - Position3 {x: $wheel_x,   y: $wheel_y,  z: -$wheel_z} }
-
-    _ : FrontLight { - Position3 {x: -$light_x, y: $bottom_y, z: $light_z}  }
-    _ : FrontLight { - Position3 {x: $light_x,  y: $bottom_y, z: $light_z}  }
-
-    _ : BackLight  { - Position3 {x: -$light_x, y: $bottom_y, z: -$light_z} }
-    _ : BackLight  { - Position3 {x: $light_x,  y: $bottom_y, z: -$light_z} }
   }
 }
 
+// Tree, but enclosed in pavement
+prefab SidewalkTree : Tree {
+  GroundEnclosing {
+    Position3: {0, 0.05, 0}
+    Box: {1.3, 0.2, 1.3}
+    Rgb: {0.3, 0.3, 0.3}
+  }
+}
+
+// Bin prefab
+prefab BinMaterial {
+  Rgb: {0.04, 0.045, 0.04}
+  Specular: {specular_power: 0.5, shininess: 0.8}
+}
+
+prefab Bin {
+  const bin_height = 0.8
+  const frame_height = 0.2
+
+  BinFrame : BinMaterial {
+    Box: {0.07, $frame_height, 0.07}
+  }
+
+  Base : BinMaterial {
+    Position3: {0, $bin_height / 2, 0}
+    Box: {0.5, $bin_height, 0.5}
+  }
+  Cover : BinMaterial {
+    Position3: {0, $bin_height + $frame_height, 0}
+    Box: {0.5, 0.1, 0.5}
+  }
+  Frame {
+    const frame_y = $bin_height + $frame_height / 2
+    const frame_x = 0.15
+
+    _ : BinFrame { Position3: {-$frame_x, $frame_y, -$frame_x} }
+    _ : BinFrame { Position3: {$frame_x,  $frame_y, -$frame_x} }
+    _ : BinFrame { Position3: {-$frame_x, $frame_y, $frame_x } }
+    _ : BinFrame { Position3: {$frame_x,  $frame_y, $frame_x } }
+  }
+}
+
+// Fire hydrant
+prefab HydrantMaterial {
+  Rgb: {0.5, 0.03, 0.03}
+  Specular: {specular_power: 0.1, shininess: 0.2}
+}
+
+prefab Hydrant {
+  const width = 0.15
+  const height = 0.5
+
+  Base : HydrantMaterial {
+    Position3: {0, $height / 2, 0}
+    Box: {$width, $height, $width}
+  }
+  Ring : HydrantMaterial {
+    Position3: {0, $height * 0.8, 0}
+    Box: {$width * 1.3, 0.03, $width * 1.3}
+  }
+  Bar : HydrantMaterial {
+    Position3: {0, $height * 0.6, 0}
+    Box: {0.3, 0.06, 0.06}
+  }
+  Front : HydrantMaterial {
+    Position3: {0, $height * 0.6, -0.1}
+    Box: {0.1, 0.1, 0.1}
+  }
+}
+
+// Bench
+prefab BenchMaterial {
+  Rgb: {0.5, 0.4, 0.3}
+}
+
+prefab BenchFootMaterial {
+  Rgb: {0.2, 0.2, 0.2}
+  Specular: {specular_power: 0.1, shininess: 0.3}
+}
+
+prefab Bench {
+  const base_width = 0.8
+  const height = 0.3
+  const top_height = 0.08
+
+  BenchFoot : BenchFootMaterial {
+    Box: {0.1, $height, 0.3}
+  }
+
+  LeftFoot : BenchFoot {
+    Position3: {-$base_width, $height / 2, 0}    
+  }
+
+  RightFoot : BenchFoot {
+    Position3: {$base_width, $height / 2, 0}
+  }
+
+  Top : BenchMaterial {
+    Position3: {0, $height + $top_height / 2, 0}
+    Box: {2.0, $top_height, 0.5}
+  }
+}
+
+// Grass floor for park
+prefab Park {
+  Rgb: {0.2, 0.3, 0.15}
+}
+
+// Plaza
+prefab Plaza {
+  Rgb: {0.11, 0.11, 0.1}
+  Specular: {specular_power: 0.2, shininess: 1.5}
+}
+
+// Building materials
+prefab Building { }
+
+prefab ModernBuilding : Building {
+  Specular: {specular_power: 0.5, shininess: 0.8}
+}
+
+// Streets & pavements
+prefab StreetMaterial {
+  Rgb: {0.15, 0.15, 0.15}
+  Specular: {specular_power: 0.1, shininess: 1.0}
+}
+
+prefab Street : StreetMaterial { }
+
+prefab Pavement {
+  Rgb: {0.3, 0.3, 0.3}
+}
+
+// Lantern
+prefab LanternLight {
+  // const lanternColor = Rgb: {1.2, 1.0, 0.5}
+  // Rgb: $lanternColor
+  Rgb: {1.2, 1.0, 0.5}
+  Emissive: {1.0}
+}
+
+prefab Lantern {
+  const height = 1.75
+  const base_height = 0.1
+  const light_height = 0.5
+  const light_bottom = $height
+  const light_top = $height + $light_height
+  const cap_height = 0.1
+
+  Base {
+    Position3: {0, $base_height / 2, 0}
+    Box: {0.5, $base_height, 0.5}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+
+  BaseCap {
+    Position3: {0, $base_height + 0.05, 0}
+    Box: {0.3, 0.1, 0.3}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+
+  Pole {
+    Position3: {0, $height / 2, 0}
+    Box: {0.15, $height, 0.15}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+
+  Light : LanternLight {
+    Position3: {0, $height + ($light_height / 2), 0}
+    Box: {0.45, $light_height, 0.45}
+
+    PointLight: {
+      color: [1.2, 1.0, 0.5]
+      distance: 0.75
+      intensity: 0.5
+    }
+  }
+
+  Bottom {
+    Position3: {0, $light_bottom - 0.05, 0}
+    Box: {0.4, 0.1, 0.4}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+
+  Cap {
+    Position3: {0, $light_top + 0.05, 0}
+    Box: {0.4, $cap_height, 0.4}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+
+  Top {
+    Position3: {0, $light_top + $cap_height - 0.05, 0}
+    Box: {0.2, 0.1, 0.2}
+    Rgb: {0.03, 0.05, 0.03}
+  }
+}
+
+prefab Car {
+  const wheel_size = 0.45
+  const wheel_y = ($wheel_size / 2)
+  const bottom_y = $wheel_size
+  const bottom_height = 0.5
+  const bottom_depth = 3.0
+  const bottom_width = 1.0
+  const wheel_x = ($bottom_width / 2) - 0.1
+  const wheel_z = ($bottom_depth / 2) - 0.5
+  const light_depth = 0.05
+  const light_size = 0.2
+  const light_x = ($bottom_width / 2.3) - ($light_size / 2)
+  const light_z = ($bottom_depth / 2) + ($light_depth / 2)
+
+  prefab BackLight {
+    Box: {$light_size, $light_size, $light_depth}
+    Rgb: {5.0, 0.0, 0.0}
+    Emissive: {1.0}
+  }
+
+  prefab FrontLight {
+    Box: {$light_size, $light_size, $light_depth}
+    Rgb: {2.1, 2.1, 2.0}
+    Emissive: {1.0}
+  }
+
+  prefab Wheel {
+    Box: {0.3, $wheel_size, $wheel_size}
+    Rgb: {0.01, 0.01, 0.01}
+  }
+
+  prefab Top {
+    Position3: {y: 0.75, z: -0.2}
+    Rotation3: {x: 0.05}
+    Box: {1.0, 0.5, 2.0}
+    Rgb: {0.005, 0.05, 0.1}
+  }
+
+  prefab Bottom {
+    Position3: {y: $bottom_y}
+    Box: {$bottom_width, $bottom_height, $bottom_depth}
+    Rgb: {0.005, 0.05, 0.1}
+  }
+
+  _ : Wheel { Position3: {x: -$wheel_x,  y: $wheel_y,  z: $wheel_z}  }
+  _ : Wheel { Position3: {x: $wheel_x,   y: $wheel_y,  z: $wheel_z}  }
+  _ : Wheel { Position3: {x: -$wheel_x,  y: $wheel_y,  z: -$wheel_z} }
+  _ : Wheel { Position3: {x: $wheel_x,   y: $wheel_y,  z: -$wheel_z} }
+
+  _ : FrontLight { Position3: {x: -$light_x, y: $bottom_y, z: $light_z}  }
+  _ : FrontLight { Position3: {x: $light_x,  y: $bottom_y, z: $light_z}  }
+
+  _ : BackLight  { Position3: {x: -$light_x, y: $bottom_y, z: -$light_z} }
+  _ : BackLight  { Position3: {x: $light_x,  y: $bottom_y, z: -$light_z} }
 }

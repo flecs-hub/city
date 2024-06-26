@@ -75,6 +75,13 @@ ECS_STRUCT(EcsDirectionalLight, {
 });
 
 FLECS_COMPONENTS_GRAPHICS_API
+ECS_STRUCT(EcsPointLight, {
+    vec3 color;
+    float distance;
+    float intensity;
+});
+
+FLECS_COMPONENTS_GRAPHICS_API
 ECS_STRUCT(EcsLookAt, {
     float x;
     float y;
@@ -91,14 +98,9 @@ ECS_STRUCT(EcsRgb, {
 typedef EcsRgb ecs_rgb_t;
 
 FLECS_COMPONENTS_GRAPHICS_API
-ECS_STRUCT(EcsRgba, {
-    float r;
-    float g;
-    float b;
-    float a;
+ECS_STRUCT(EcsOpacity, {
+    float value;
 });
-
-typedef EcsRgba ecs_rgba_t;
 
 FLECS_COMPONENTS_GRAPHICS_API
 ECS_STRUCT(EcsSpecular, {
@@ -148,12 +150,6 @@ namespace components {
 class graphics {
 public:
     struct rgb_t : ecs_rgb_t {
-        operator float*() {
-            return reinterpret_cast<float*>(this);
-        }
-    };
-
-    struct rgba_t : ecs_rgba_t {
         operator float*() {
             return reinterpret_cast<float*>(this);
         }
@@ -219,11 +215,12 @@ public:
         }
     };
 
-    using Rgb = EcsRgb;
-    using Rgba = EcsRgba;
+    using Color = EcsRgb;
+    using Opacity = EcsOpacity;
     using Specular = EcsSpecular;
     using Emissive = EcsEmissive;
     using Atmosphere = EcsAtmosphere;
+    using PointLight = EcsPointLight;
 
     graphics(flecs::world& ecs) {
         // Load module contents
@@ -233,8 +230,9 @@ public:
         ecs.module<flecs::components::graphics>();
         ecs.component<Camera>();
         ecs.component<DirectionalLight>();
-        ecs.component<Rgb>();
-        ecs.component<Rgba>();
+        ecs.component<PointLight>();
+        ecs.component<Color>();
+        ecs.component<Opacity>();
         ecs.component<Specular>();
         ecs.component<Emissive>();
     }

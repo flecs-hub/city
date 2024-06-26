@@ -53,18 +53,65 @@
 #define ECS_META_IMPL EXTERN // Ensure meta symbols are only defined once
 #endif
 
+/* Canvas */
+
 FLECS_COMPONENTS_GUI_API
 ECS_STRUCT(EcsCanvas, {
     char *title;
     int32_t width;
     int32_t height;
+    int32_t left;
+    int32_t right;
+    int32_t top;
+    int32_t bottom;
     ecs_entity_t camera;
     ecs_entity_t directional_light;
     EcsRgb background_color;
     EcsRgb ambient_light;
+    EcsRgb ambient_light_ground;
+    float ambient_light_ground_falloff;
+    float ambient_light_ground_offset;
+    float ambient_light_ground_intensity;
     float fog_density;
-    float fog_falloff;
+    float shadow_far;
 });
+
+/* Text & fonts */
+
+FLECS_COMPONENTS_GUI_API
+ECS_STRUCT(EcsText, {
+    char *value;
+});
+
+FLECS_COMPONENTS_GUI_API
+ECS_STRUCT(EcsFontSize, {
+    int32_t value;
+});
+
+FLECS_COMPONENTS_GUI_API
+ECS_ENUM(EcsFontStyle, {
+    EcsFontStyleRegular,
+    EcsFontStyleItalic,
+    EcsFontStyleBold
+});
+
+/* Alignment */
+
+FLECS_COMPONENTS_GUI_API
+ECS_BITMASK(EcsAlign, {
+    EcsAlignLeft    = 1,
+    EcsAlignCenter  = 2,
+    EcsAlignRight   = 4,
+    EcsAlignTop     = 8,
+    EcsAlignMiddle  = 16,
+    EcsAlignBottom  = 32
+});
+
+FLECS_COMPONENTS_GUI_API
+ECS_STRUCT(EcsPadding, {
+    float value;
+});
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,9 +133,19 @@ namespace components {
 
 class gui {
 public:
+    using Align = EcsAlign;
+
     struct Canvas : EcsCanvas {
         Canvas() {
             this->title = nullptr;
+
+            this->width = 0;
+            this->height = 0;
+
+            this->left = 0;
+            this->right = 0;
+            this->top = 0;
+            this->bottom = 0;
 
             this->ambient_light.r = 1.0;
             this->ambient_light.g = 1.0;

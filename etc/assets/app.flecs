@@ -2,35 +2,48 @@ using flecs.components.*
 using flecs.game
 
 light {
-  - Sun
-  - Rotation3{y: 0.5}
+  Sun
+  Rotation3:{y: 0.5}
 }
 
-$ :- TimeOfDay {
-  t: 0.4
-  speed: 0.0005
+$ { 
+  TimeOfDay: {
+    t: 0.3
+    speed: 0.0005
+  }
 }
 
 camera {
-  - CameraController
-  - Position3 {-81, 15.0, -300}
-  - Rotation3 {-0.15}
-  - Camera {
-      fov: 20
-      up: [0, 1, 0]
+  CameraController
+  Position3: {-110, 15.0, -293}
+  Rotation3: {-0.15}
+  Camera: {
+    fov: 20
+    up: [0, 1, 0]
+    near_: 1
+    far_: 1000
   }
 }
 
 canvas {
-  - Atmosphere
-  - Canvas {
-      title: "Flecs City"
-      width: 1200
-      height: 900
-      background_color: {0.3, 0.6, 0.9}
-      ambient_light: {0.03, 0.06, 0.09}
-      directional_light: light
-      camera: camera
-      fog_density: 2
+  Atmosphere
+  Canvas: {
+    title: "Flecs City"
+    width: 1200
+    height: 900
+    background_color: {0.3, 0.6, 0.9}
+    ambient_light: {0.03, 0.06, 0.09}
+    ambient_light_ground: {0.015, 0.0125, 0.00625}
+    ambient_light_ground_falloff: 4.0
+    directional_light: light
+    camera: camera
+    fog_density: 1.6
+    shadow_far: 50
   }
+}
+
+ground_plane {
+  Position3: {0, -1.0, 0}
+  Box: {5000, 1.0, 5000}
+  Rgb: {0.11, 0.15, 0.1}
 }

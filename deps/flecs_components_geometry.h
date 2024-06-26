@@ -74,12 +74,29 @@ ECS_STRUCT(EcsRectangle, {
     float height;
 });
 
-typedef EcsRectangle ecs_rect_t;
+FLECS_COMPONENTS_GEOMETRY_API
+ECS_STRUCT(EcsStrokeWidth, {
+    float value;
+    float left;
+    float right;
+    float top;
+    float bottom;
+});
 
 FLECS_COMPONENTS_GEOMETRY_API
-ECS_STRUCT(EcsSquare, {
-    float size;
+extern ECS_COMPONENT_DECLARE(EcsStrokeColor);
+typedef EcsRgb EcsStrokeColor;
+
+FLECS_COMPONENTS_GEOMETRY_API
+ECS_STRUCT(EcsCornerRadius, {
+    float value;
+    float top_left;
+    float top_right;
+    float bottom_left;
+    float bottom_right;
 });
+
+typedef EcsRectangle ecs_rect_t;
 
 FLECS_COMPONENTS_GEOMETRY_API
 ECS_STRUCT(EcsCircle, {
@@ -125,9 +142,16 @@ public:
     using Line2 = EcsLine2;
     using Line3 = EcsLine3;
     using Rectangle = EcsRectangle;
-    using Square = EcsSquare;
+    using StrokeWidth = EcsStrokeWidth;
+    using CornerRadius = EcsCornerRadius;
     using Circle = EcsCircle;
     using Box = EcsBox;
+
+    struct StrokeColor {
+        float r;
+        float g;
+        float b;
+    };
 
     geometry(flecs::world& ecs) {
         // Load module contents
@@ -138,9 +162,10 @@ public:
         ecs.component<Line2>();
         ecs.component<Line3>();
         ecs.component<Rectangle>();
-        ecs.component<Square>();
         ecs.component<Circle>();
         ecs.component<Box>();
+        ecs.component<StrokeWidth>();
+        ecs.component<StrokeColor>();
     }
 };
 
