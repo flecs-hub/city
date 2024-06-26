@@ -11,19 +11,18 @@ int main(int argc, char *argv[]) {
     ECS_IMPORT(world, FlecsComponentsGraphics);
     ECS_IMPORT(world, FlecsSystemsTransform);
     ECS_IMPORT(world, FlecsSystemsSokol);
-    ECS_IMPORT(world, FlecsMonitor);
     ECS_IMPORT(world, FlecsGame);
     ECS_IMPORT(world, FlecsCity);
 
-    ecs_plecs_from_file(world, "etc/assets/app.flecs");
+    ecs_script_run_file(world, "etc/assets/app.flecs");
 
     ecs_time_t t = {0}; ecs_time_measure(&t);
-    ecs_plecs_from_file(world, "etc/assets/scene.flecs");
+    ecs_script_run_file(world, "etc/assets/scene.flecs");
     printf("scene loaded in %fs\n", ecs_time_measure(&t));
 
     return ecs_app_run(world, &(ecs_app_desc_t){
         .target_fps = 60, 
         .enable_rest = true,
-        .enable_monitor = true
+        .enable_stats = true
     });
 }

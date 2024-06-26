@@ -124,11 +124,11 @@ ecs_entity_t plant_prop(ecs_world_t *world, CityBlock *block, float x, float y) 
     }
 
     if (x < 0) {
-        ecs_set(world, result, EcsRotation3, {0, M_PI / 2.0, 0});
+        ecs_set(world, result, EcsRotation3, {0, GLM_PI / 2.0, 0});
     } else if (x > 0) {
-        ecs_set(world, result, EcsRotation3, {0, -M_PI / 2.0, 0});
+        ecs_set(world, result, EcsRotation3, {0, -GLM_PI / 2.0, 0});
     } else if (y > 0) {
-        ecs_set(world, result, EcsRotation3, {0, M_PI, 0});
+        ecs_set(world, result, EcsRotation3, {0, GLM_PI, 0});
     }
 
     return result;
@@ -484,7 +484,7 @@ void plant_city_block(
 
 /* Generate city */
 void SetCity(ecs_iter_t *it) {
-    City *cities = ecs_field(it, City, 1);
+    City *cities = ecs_field(it, City, 0);
 
     ecs_world_t *world = it->world;
 
@@ -559,7 +559,8 @@ void SetCity(ecs_iter_t *it) {
         };
 
         ecs_entity_t streets = ecs_entity(world, {
-            .add = { ecs_childof(e), ecs_isa(CityStreet) }
+            .parent = e,
+            .add = ecs_ids(ecs_isa(CityStreet))
         });
 
         ecs_set(world, streets, EcsPosition3, {0, -(STREETS_HEIGHT / 2.0), 0});
@@ -598,8 +599,8 @@ void SetCity(ecs_iter_t *it) {
 
 static
 void GenerateTraffic(ecs_iter_t *it) {
-    EcsPosition3 *p = ecs_field(it, EcsPosition3, 1);
-    CityTrafficEmitter *emit = ecs_field(it, CityTrafficEmitter, 2);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 0);
+    CityTrafficEmitter *emit = ecs_field(it, CityTrafficEmitter, 1);
 
     ecs_world_t *world = it->world;
 
@@ -607,7 +608,7 @@ void GenerateTraffic(ecs_iter_t *it) {
         emit[i].elapsed += it->delta_time;
 
         if (emit[i].elapsed > (1.0f / emit[i].frequency)) {
-            ecs_entity_t e = ecs_new_id(world);
+            ecs_entity_t e = ecs_new(world);
             ecs_set_ptr(world, e, EcsVelocity3, &emit[i].initial_velocity);
             ecs_set_ptr(world, e, EcsRotation3, &emit[i].initial_rotation);
             ecs_set_ptr(world, e, CityBound, &emit[i].bound);
@@ -620,8 +621,8 @@ void GenerateTraffic(ecs_iter_t *it) {
 
 static
 void ExpireTraffic(ecs_iter_t *it) {
-    EcsPosition3 *p = ecs_field(it, EcsPosition3, 1);
-    CityBound *b = ecs_field(it, CityBound, 2);
+    EcsPosition3 *p = ecs_field(it, EcsPosition3, 0);
+    CityBound *b = ecs_field(it, CityBound, 1);
 
     ecs_world_t *world = it->world;
 
@@ -678,21 +679,21 @@ void FlecsCityImport(
         [in]    CityBound);
 
     /* Load module assets */
-    if (ecs_plecs_from_file(world, "etc/assets/city.flecs") == 0) {
-        CityStreet = ecs_lookup_fullpath(world, "Street");
-        CityPavement = ecs_lookup_fullpath(world, "Pavement");
-        CityAc = ecs_lookup_fullpath(world, "Ac");
-        CityTree = ecs_lookup_fullpath(world, "Tree");
-        CitySidewalkTree = ecs_lookup_fullpath(world, "SidewalkTree");
-        CityBin = ecs_lookup_fullpath(world, "Bin");
-        CityHydrant = ecs_lookup_fullpath(world, "Hydrant");
-        CityBench = ecs_lookup_fullpath(world, "Bench");
-        CityLantern = ecs_lookup_fullpath(world, "Lantern");
-        CityPark = ecs_lookup_fullpath(world, "Park");
-        CityPlaza = ecs_lookup_fullpath(world, "Plaza");
-        CityBuilding = ecs_lookup_fullpath(world, "Building");
-        CityModernBuilding = ecs_lookup_fullpath(world, "ModernBuilding");
-        CityCar = ecs_lookup_fullpath(world, "Car");
+    if (ecs_script_run_file(world, "etc/assets/city.flecs") == 0) {
+        CityStreet = ecs_lookup(world, "Street");
+        CityPavement = ecs_lookup(world, "Pavement");
+        CityAc = ecs_lookup(world, "Ac");
+        CityTree = ecs_lookup(world, "Tree");
+        CitySidewalkTree = ecs_lookup(world, "SidewalkTree");
+        CityBin = ecs_lookup(world, "Bin");
+        CityHydrant = ecs_lookup(world, "Hydrant");
+        CityBench = ecs_lookup(world, "Bench");
+        CityLantern = ecs_lookup(world, "Lantern");
+        CityPark = ecs_lookup(world, "Park");
+        CityPlaza = ecs_lookup(world, "Plaza");
+        CityBuilding = ecs_lookup(world, "Building");
+        CityModernBuilding = ecs_lookup(world, "ModernBuilding");
+        CityCar = ecs_lookup(world, "Car");
     } else {
         ecs_err("failed to load city assets");
     }
