@@ -8,37 +8,39 @@ light {
 
 $ { 
   TimeOfDay: {
-    t: 0.3
+    t: 0.8
     speed: 0.0005
   }
 }
 
 camera {
   CameraController
-  Position3: {-110, 15.0, -293}
+  Position3: {-115, 10.0, -287}
   Rotation3: {-0.15}
   Camera: {
     fov: 20
     up: [0, 1, 0]
-    near_: 1
-    far_: 1000
+    near_: 2
+    far_: 700
   }
 }
 
 canvas {
-  Atmosphere
+  Atmosphere: {
+    night_color: {0.0001, 0.002, 0.004}
+  }
   Canvas: {
     title: "Flecs City"
     width: 1200
     height: 900
     background_color: {0.3, 0.6, 0.9}
     ambient_light: {0.03, 0.06, 0.09}
-    ambient_light_ground: {0.015, 0.0125, 0.00625}
+    ambient_light_ground: {0.007, 0.00625, 0.00312}
     ambient_light_ground_falloff: 4.0
     directional_light: light
     camera: camera
-    fog_density: 1.6
-    shadow_far: 50
+    fog_density: 2.0
+    shadow_far: 300
   }
 }
 

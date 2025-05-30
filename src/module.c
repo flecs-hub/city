@@ -488,8 +488,6 @@ void SetCity(ecs_iter_t *it) {
 
     ecs_world_t *world = it->world;
 
-    srand(0);
-
     for (int i = 0; i < it->count; i ++) {
         ecs_entity_t e = it->entities[i];
 
@@ -547,7 +545,9 @@ void SetCity(ecs_iter_t *it) {
         float city_width = blocks_x * width;
         float city_height = blocks_y * height;
         float left = -(city_width / 2.0f);
+        float right = (city_width / 2.0f);
         float top = -(city_height / 2.0f);
+        float bottom = (city_height / 2.0f);
 
         CityBound bound = {
             .width =   city_width,
@@ -590,7 +590,53 @@ void SetCity(ecs_iter_t *it) {
                     .initial_rotation = {0},
                     .bound = bound,
                     .frequency = city->traffic.frequency,
-                    .elapsed = 0
+                    .elapsed = city->traffic.frequency * randf(1.0)
+                });
+
+                lane_center -= lane_width;
+
+                ecs_entity_t emit_2 = ecs_new_w_pair(world, EcsChildOf, e);
+                ecs_set(world, emit_2, EcsPosition3, {
+                    lane_center, 0, bottom
+                });
+                ecs_set(world, emit_2, CityTrafficEmitter, {
+                    .initial_velocity = {0, 0.0, -traffic_speed},
+                    .initial_rotation = {0, GLM_PI},
+                    .bound = bound,
+                    .frequency = city->traffic.frequency,
+                    .elapsed = city->traffic.frequency * randf(1.0)
+                });
+            }
+
+            for (int y = 0; y < blocks_y; y ++) {
+                float block_left = top + height * y;
+                float lane_width = road_width / 2.0;
+                float lane_center = block_left + lane_width / 2.0;
+
+                ecs_entity_t emit_1 = ecs_new_w_pair(world, EcsChildOf, e);
+                ecs_set(world, emit_1, EcsPosition3, {
+                    left, 0, lane_center
+                });
+                ecs_set(world, emit_1, CityTrafficEmitter, {
+                    .initial_velocity = {traffic_speed, 0.0, 0.0},
+                    .initial_rotation = {0, GLM_PI / 2.0},
+                    .bound = bound,
+                    .frequency = city->traffic.frequency,
+                    .elapsed = city->traffic.frequency * randf(1.0)
+                });
+
+                lane_center -= lane_width;
+
+                ecs_entity_t emit_2 = ecs_new_w_pair(world, EcsChildOf, e);
+                ecs_set(world, emit_2, EcsPosition3, {
+                    right, 0, lane_center
+                });
+                ecs_set(world, emit_2, CityTrafficEmitter, {
+                    .initial_velocity = {-traffic_speed, 0.0, 0},
+                    .initial_rotation = {0, -GLM_PI / 2.0},
+                    .bound = bound,
+                    .frequency = city->traffic.frequency,
+                    .elapsed = city->traffic.frequency * randf(1.0)
                 });
             }
         }
@@ -601,6 +647,7 @@ static
 void GenerateTraffic(ecs_iter_t *it) {
     EcsPosition3 *p = ecs_field(it, EcsPosition3, 0);
     CityTrafficEmitter *emit = ecs_field(it, CityTrafficEmitter, 1);
+    City *city = ecs_field(it, City, 2);
 
     ecs_world_t *world = it->world;
 
@@ -608,12 +655,14 @@ void GenerateTraffic(ecs_iter_t *it) {
         emit[i].elapsed += it->delta_time;
 
         if (emit[i].elapsed > (1.0f / emit[i].frequency)) {
-            ecs_entity_t e = ecs_new(world);
-            ecs_set_ptr(world, e, EcsVelocity3, &emit[i].initial_velocity);
-            ecs_set_ptr(world, e, EcsRotation3, &emit[i].initial_rotation);
-            ecs_set_ptr(world, e, CityBound, &emit[i].bound);
-            ecs_set_ptr(world, e, EcsPosition3, &p[i]);
-            ecs_add_pair(world, e, EcsIsA, CityCar);
+            if (randf(1.0) > (1.0 - city->traffic.chance)) {
+                ecs_entity_t e = ecs_new(world);
+                ecs_set_ptr(world, e, EcsVelocity3, &emit[i].initial_velocity);
+                ecs_set_ptr(world, e, EcsRotation3, &emit[i].initial_rotation);
+                ecs_set_ptr(world, e, CityBound, &emit[i].bound);
+                ecs_set_ptr(world, e, EcsPosition3, &p[i]);
+                ecs_add_pair(world, e, EcsIsA, CityCar);
+            }
             emit[i].elapsed = 0;
         }
     }
@@ -672,7 +721,8 @@ void FlecsCityImport(
 
     ECS_SYSTEM(world, GenerateTraffic, EcsOnUpdate, 
         [in]    flecs.components.transform.Position3,
-        [inout] CityTrafficEmitter);
+        [inout] CityTrafficEmitter,
+        [in]    City(up));
 
     ECS_SYSTEM(world, ExpireTraffic, EcsOnUpdate, 
         [in]    flecs.components.transform.Position3,

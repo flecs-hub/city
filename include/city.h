@@ -43,6 +43,7 @@ ECS_STRUCT(CityProps, {
 ECS_STRUCT(CityTraffic, {
     float frequency;
     float speed;
+    float chance;
 });
 
 ECS_STRUCT(City, {

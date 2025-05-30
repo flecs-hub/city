@@ -12,7 +12,7 @@ my_city_0 {
 
     buildings: {
       min_height: 3
-      max_height: 125
+      max_height: 160
       x_variation: 0.5
       y_variation: 2.0
       small_height: 50
@@ -35,6 +35,12 @@ my_city_0 {
       bin_chance: 0.09
       hydrant_chance: 0.03
       bench_chance: 0.08
+    }
+
+    traffic: {
+      frequency: 5
+      speed: 10
+      chance: 0.02
     }
 
     lanterns: true

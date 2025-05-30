@@ -268,7 +268,7 @@ prefab Car {
 
   prefab Top {
     Position3: {y: 0.75, z: -0.2}
-    Rotation3: {x: 0.05}
+    Rotation3: {x: -0.05}
     Box: {1.0, 0.5, 2.0}
     Rgb: {0.005, 0.05, 0.1}
   }
