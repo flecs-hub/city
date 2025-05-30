@@ -59,7 +59,7 @@
         },
         "${target em}": {
             "ldflags": [
-                "-s USE_WEBGL2=1"
+                "-sMAX_WEBGL_VERSION=2"
             ],
             "${cfg debug}": {
                 "ldflags": [
