@@ -3,13 +3,15 @@ using flecs.components.*
 using flecs.meta
 using flecs.game
 
+with TransformOnce {
+
 prefab Tree {
-  const ground_height = 0.3
-  const ground_width = 1.0
-  const trunk_height = 2.0
-  const trunk_width = 0.5
-  const canopy_height = 2.0
-  const canopy_width = 1.5
+  const ground_height: 0.3
+  const ground_width: 1.0
+  const trunk_height: 2.0
+  const trunk_width: 0.5
+  const canopy_height: 2.0
+  const canopy_width: 1.5
 
   Ground {
     Position3: {0, ($ground_height / 2), 0}
@@ -22,8 +24,8 @@ prefab Tree {
     Rgb: {0.25, 0.2, 0.1}
   }
   Canopy {
-    const canopy_y = $trunk_height + ($canopy_height / 2)
-    const canopy_top_width = $canopy_width - 0.5
+    const canopy_y: $trunk_height + ($canopy_height / 2)
+    const canopy_top_width: $canopy_width - 0.5
 
     _ {
       Position3: {0, $canopy_y, 0}
@@ -54,8 +56,8 @@ prefab BinMaterial {
 }
 
 prefab Bin {
-  const bin_height = 0.8
-  const frame_height = 0.2
+  const bin_height: 0.8
+  const frame_height: 0.2
 
   BinFrame : BinMaterial {
     Box: {0.07, $frame_height, 0.07}
@@ -70,8 +72,8 @@ prefab Bin {
     Box: {0.5, 0.1, 0.5}
   }
   Frame {
-    const frame_y = $bin_height + $frame_height / 2
-    const frame_x = 0.15
+    const frame_y: $bin_height + $frame_height / 2
+    const frame_x: 0.15
 
     _ : BinFrame { Position3: {-$frame_x, $frame_y, -$frame_x} }
     _ : BinFrame { Position3: {$frame_x,  $frame_y, -$frame_x} }
@@ -87,8 +89,8 @@ prefab HydrantMaterial {
 }
 
 prefab Hydrant {
-  const width = 0.15
-  const height = 0.5
+  const width: 0.15
+  const height: 0.5
 
   Base : HydrantMaterial {
     Position3: {0, $height / 2, 0}
@@ -119,9 +121,9 @@ prefab BenchFootMaterial {
 }
 
 prefab Bench {
-  const base_width = 0.8
-  const height = 0.3
-  const top_height = 0.08
+  const base_width: 0.8
+  const height: 0.3
+  const top_height: 0.08
 
   BenchFoot : BenchFootMaterial {
     Box: {0.1, $height, 0.3}
@@ -173,19 +175,19 @@ prefab Pavement {
 
 // Lantern
 prefab LanternLight {
-  // const lanternColor = Rgb: {1.2, 1.0, 0.5}
+  // const lanternColor: Rgb: {1.2, 1.0, 0.5}
   // Rgb: $lanternColor
   Rgb: {1.2, 1.0, 0.5}
   Emissive: {1.0}
 }
 
 prefab Lantern {
-  const height = 1.75
-  const base_height = 0.1
-  const light_height = 0.5
-  const light_bottom = $height
-  const light_top = $height + $light_height
-  const cap_height = 0.1
+  const height: 1.75
+  const base_height: 0.1
+  const light_height: 0.5
+  const light_bottom: $height
+  const light_top: $height + $light_height
+  const cap_height: 0.1
 
   Base {
     Position3: {0, $base_height / 2, 0}
@@ -235,19 +237,21 @@ prefab Lantern {
   }
 }
 
+}
+
 prefab Car {
-  const wheel_size = 0.45
-  const wheel_y = ($wheel_size / 2)
-  const bottom_y = $wheel_size
-  const bottom_height = 0.5
-  const bottom_depth = 3.0
-  const bottom_width = 1.0
-  const wheel_x = ($bottom_width / 2) - 0.1
-  const wheel_z = ($bottom_depth / 2) - 0.5
-  const light_depth = 0.05
-  const light_size = 0.2
-  const light_x = ($bottom_width / 2.3) - ($light_size / 2)
-  const light_z = ($bottom_depth / 2) + ($light_depth / 2)
+  const wheel_size: 0.45
+  const wheel_y: ($wheel_size / 2)
+  const bottom_y: $wheel_size
+  const bottom_height: 0.5
+  const bottom_depth: 3.0
+  const bottom_width: 1.0
+  const wheel_x: ($bottom_width / 2) - 0.1
+  const wheel_z: ($bottom_depth / 2) - 0.5
+  const light_depth: 0.05
+  const light_size: 0.2
+  const light_x: ($bottom_width / 2.3) - ($light_size / 2)
+  const light_z: ($bottom_depth / 2) + ($light_depth / 2)
 
   prefab BackLight {
     Box: {$light_size, $light_size, $light_depth}
@@ -263,7 +267,7 @@ prefab Car {
 
   prefab Wheel {
     Box: {0.3, $wheel_size, $wheel_size}
-    Rgb: {0.01, 0.01, 0.01}
+    Rgb: {0.0, 0.0, 0.0}
   }
 
   prefab Top {

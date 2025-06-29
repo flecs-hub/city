@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     printf("scene loaded in %fs\n", ecs_time_measure(&t));
 
     /* Prewarm simulation so there's cars everywhere */
-    for (int i = 0; i < 500; i ++) {
+    for (int i = 0; i < 5000; i ++) {
         ecs_progress(world, 0.16);
     }
 

@@ -581,9 +581,12 @@ void SetCity(ecs_iter_t *it) {
                 float lane_width = road_width / 2.0;
                 float lane_center = block_left + lane_width / 2.0;
 
+                // float lheight = randf(120); // flying cars
+                float lheight = 0;
+
                 ecs_entity_t emit_1 = ecs_new_w_pair(world, EcsChildOf, e);
                 ecs_set(world, emit_1, EcsPosition3, {
-                    lane_center, 0, top
+                    lane_center, lheight, top
                 });
                 ecs_set(world, emit_1, CityTrafficEmitter, {
                     .initial_velocity = {0, 0.0, traffic_speed},
@@ -597,7 +600,7 @@ void SetCity(ecs_iter_t *it) {
 
                 ecs_entity_t emit_2 = ecs_new_w_pair(world, EcsChildOf, e);
                 ecs_set(world, emit_2, EcsPosition3, {
-                    lane_center, 0, bottom
+                    lane_center, lheight, bottom
                 });
                 ecs_set(world, emit_2, CityTrafficEmitter, {
                     .initial_velocity = {0, 0.0, -traffic_speed},
@@ -613,9 +616,12 @@ void SetCity(ecs_iter_t *it) {
                 float lane_width = road_width / 2.0;
                 float lane_center = block_left + lane_width / 2.0;
 
+                // float lheight = randf(120); // flying cars
+                float lheight = 0;
+
                 ecs_entity_t emit_1 = ecs_new_w_pair(world, EcsChildOf, e);
                 ecs_set(world, emit_1, EcsPosition3, {
-                    left, 0, lane_center
+                    left, lheight, lane_center
                 });
                 ecs_set(world, emit_1, CityTrafficEmitter, {
                     .initial_velocity = {traffic_speed, 0.0, 0.0},
@@ -629,7 +635,7 @@ void SetCity(ecs_iter_t *it) {
 
                 ecs_entity_t emit_2 = ecs_new_w_pair(world, EcsChildOf, e);
                 ecs_set(world, emit_2, EcsPosition3, {
-                    right, 0, lane_center
+                    right, lheight, lane_center
                 });
                 ecs_set(world, emit_2, CityTrafficEmitter, {
                     .initial_velocity = {-traffic_speed, 0.0, 0},
