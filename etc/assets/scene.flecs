@@ -2,7 +2,7 @@ using flecs.components.*
 using flecs.city
 using flecs.game
 
-my_city_0 {
+city {
   City: {
     blocks_x: 25
     blocks_y: 18

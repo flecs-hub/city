@@ -48,6 +48,8 @@ static ecs_entity_t CityBuilding;
 static ecs_entity_t CityModernBuilding;
 static ecs_entity_t CityCar;
 
+static ecs_entity_t CarsRoot;
+
 /* Internal types */
 typedef struct {
     const City *city;
@@ -662,7 +664,8 @@ void GenerateTraffic(ecs_iter_t *it) {
 
         if (emit[i].elapsed > (1.0f / emit[i].frequency)) {
             if (randf(1.0) > (1.0 - city->traffic.chance)) {
-                ecs_entity_t e = ecs_new(world);
+                ecs_entity_t e = ecs_new_w_pair(
+                    world, EcsChildOf, CarsRoot);
                 ecs_set_ptr(world, e, EcsVelocity3, &emit[i].initial_velocity);
                 ecs_set_ptr(world, e, EcsRotation3, &emit[i].initial_rotation);
                 ecs_set_ptr(world, e, CityBound, &emit[i].bound);
@@ -753,4 +756,8 @@ void FlecsCityImport(
     } else {
         ecs_err("failed to load city assets");
     }
+
+    CarsRoot = ecs_entity(world, {
+        .name = "#0.cars"
+    });
 }

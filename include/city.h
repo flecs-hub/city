@@ -61,6 +61,8 @@ ECS_STRUCT(City, {
     CityParks parks;
     CityProps props;
     CityTraffic traffic;
+
+    ecs_entity_t cars_scope;
 });
 
 void FlecsCityImport(
