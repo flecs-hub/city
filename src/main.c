@@ -3,6 +3,8 @@
 int main(int argc, char *argv[]) {    
     ecs_world_t *world = ecs_init();
 
+    ECS_IMPORT(world, FlecsStats);
+
     ECS_IMPORT(world, FlecsUnits);
     ECS_IMPORT(world, FlecsScript);
     ECS_IMPORT(world, FlecsComponentsTransform);
@@ -25,6 +27,8 @@ int main(int argc, char *argv[]) {
     ECS_IMPORT(world, FlecsSystemsTransform);
     ECS_IMPORT(world, FlecsSystemsSokol);
     ecs_script_run_file(world, "etc/assets/app.flecs");
+
+    ecs_shrink(world);
 
     return ecs_app_run(world, &(ecs_app_desc_t){
         .enable_rest = true,
